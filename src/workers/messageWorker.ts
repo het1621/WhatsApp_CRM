@@ -1,0 +1,86 @@
+import { Worker, Job } from 'bullmq';
+import prisma from '../lib/prisma';
+import { createMetaClient } from '../lib/metaClient';
+import { config } from '../config';
+import { MessageJobData, sharedRedisConnection } from './messageQueue';
+
+const metaClient = createMetaClient(
+  config.meta.phoneNumberId,
+  config.meta.accessToken,
+  config.meta.appSecret,
+  config.meta.wabaId
+);
+
+export const messageWorker = new Worker(
+  'whatsapp-messages',
+  async (job: Job<MessageJobData>) => {
+    const { contactId, campaignId, phoneNumber, templateName, textBody, variables } = job.data;
+
+    try {
+      let result;
+
+      if (templateName) {
+        result = await metaClient.sendTemplateMessage(
+          phoneNumber,
+          templateName,
+          'en', // default language
+          variables || []
+        );
+      } else if (textBody) {
+        result = await metaClient.sendTextMessage(phoneNumber, textBody);
+      } else {
+        throw new Error('Neither templateName nor textBody provided');
+      }
+
+      if (result.error) {
+        throw new Error(`Meta API Error: ${JSON.stringify(result.error)}`);
+      }
+
+      // Log successful send
+      const wamid = result.data?.messages?.[0]?.id;
+
+      await prisma.messageLog.create({
+        data: {
+          contactId,
+          campaignId,
+          wamid,
+          status: 'sent',
+        },
+      });
+
+      return { success: true, wamid };
+    } catch (error: any) {
+      // Fix #9: Only write a failure log on the LAST attempt to avoid duplicate rows.
+      // BullMQ is 0-indexed for attemptsMade; opts.attempts is the max total attempts.
+      const maxAttempts = job.opts.attempts ?? 1;
+      const isLastAttempt = job.attemptsMade >= maxAttempts - 1;
+
+      if (isLastAttempt) {
+        await prisma.messageLog.create({
+          data: {
+            contactId,
+            campaignId,
+            status: 'failed',
+            error: error.message,
+          },
+        });
+      }
+
+      // Re-throw to let BullMQ handle retries
+      throw error;
+    }
+  },
+  {
+    connection: sharedRedisConnection as any, // Fix #5: shared connection
+    concurrency: 5,
+  }
+);
+
+messageWorker.on('completed', (job) => {
+  console.log(`Job ${job.id} completed!`);
+});
+
+messageWorker.on('failed', (job, err) => {
+  console.error(`Job ${job?.id} failed with ${err.message}`);
+});
+
