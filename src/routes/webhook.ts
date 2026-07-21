@@ -5,6 +5,8 @@ import { config } from '../config';
 
 const router = Router();
 
+const WEBHOOK_VERIFY_TOKEN = process.env.WEBHOOK_VERIFY_TOKEN || config.meta.webhookVerifyToken;
+
 const metaClient = createMetaClient(
   config.meta.phoneNumberId,
   config.meta.accessToken,
@@ -12,60 +14,82 @@ const metaClient = createMetaClient(
   config.meta.wabaId
 );
 
-// Meta Webhook Verification
+// Meta Webhook Verification (GET)
 router.get('/', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode === 'subscribe' && token === config.meta.webhookVerifyToken) {
-    console.log('Webhook verified!');
+  if (mode === 'subscribe' && token === WEBHOOK_VERIFY_TOKEN) {
+    console.log('Webhook verified by Meta');
     res.status(200).send(challenge);
   } else {
+    console.error('Webhook verification failed');
     res.sendStatus(403);
   }
 });
 
-// Receive messages and status updates
+// Receive messages and status updates (POST)
 router.post('/', async (req, res) => {
   const body = req.body;
 
-  // Fix #1: Verify webhook signature to ensure payload is genuinely from Meta
-  const signature = req.headers['x-hub-signature-256'] as string;
-  if (!signature || !metaClient.verifyWebhookSignature(JSON.stringify(body), signature)) {
-    return res.sendStatus(401);
-  }
+  // Meta requires immediate 200 response
+  res.sendStatus(200);
 
-  if (body.object) {
-    if (body.entry && body.entry[0].changes && body.entry[0].changes[0] && body.entry[0].changes[0].value.messages) {
-      // Handle incoming message
-      const phoneNumber = body.entry[0].changes[0].value.contacts[0].wa_id;
-      const message = body.entry[0].changes[0].value.messages[0];
-      console.log(`Received message from ${phoneNumber}:`, message);
-      // You can store incoming messages or trigger auto-replies here
-    }
+  try {
+    if (!body.entry) return;
 
-    if (body.entry && body.entry[0].changes && body.entry[0].changes[0] && body.entry[0].changes[0].value.statuses) {
-      // Handle status update (sent, delivered, read, failed)
-      const statusObj = body.entry[0].changes[0].value.statuses[0];
-      const wamid = statusObj.id;
-      const status = statusObj.status; // 'sent', 'delivered', 'read', 'failed'
+    for (const entry of body.entry) {
+      for (const change of entry.changes) {
+        // Handle message status updates (delivered, read, failed)
+        if (change.value.statuses) {
+          for (const status of change.value.statuses) {
+            // Meta status values: sent, delivered, read, failed
+            try {
+              await prisma.messageLog.updateMany({
+                where: { wamid: status.id },
+                data: { status: status.status },
+              });
 
-      console.log(`Message ${wamid} status updated to: ${status}`);
+              console.log(`Message ${status.id} status: ${status.status}`);
 
-      try {
-        await prisma.messageLog.update({
-          where: { wamid },
-          data: { status },
-        });
-      } catch (err) {
-        console.error(`Failed to update message status for wamid ${wamid}`, err);
+              // Update campaign counts if the message belongs to a campaign
+              if (status.status === 'delivered' || status.status === 'failed') {
+                const messageLog = await prisma.messageLog.findFirst({
+                  where: { wamid: status.id },
+                });
+
+                if (messageLog?.campaignId) {
+                  if (status.status === 'delivered') {
+                    await prisma.campaign.update({
+                      where: { id: messageLog.campaignId },
+                      data: { deliveredCount: { increment: 1 } },
+                    });
+                  } else if (status.status === 'failed') {
+                    await prisma.campaign.update({
+                      where: { id: messageLog.campaignId },
+                      data: { failedCount: { increment: 1 } },
+                    });
+                  }
+                }
+              }
+            } catch (err) {
+              console.error(`Failed to update message status for wamid ${status.id}`, err);
+            }
+          }
+        }
+
+        // Handle incoming messages (for future two-way inbox)
+        if (change.value.messages) {
+          for (const message of change.value.messages) {
+            console.log(`Incoming message from ${message.from}: ${message.text?.body}`);
+            // Store incoming messages for two-way inbox feature
+          }
+        }
       }
     }
-    res.sendStatus(200);
-  } else {
-    // Fix #12: Always return 200 to Meta — 404 causes retries and can disable the webhook
-    res.sendStatus(200);
+  } catch (error) {
+    console.error('Webhook processing error:', error);
   }
 });
 

@@ -36,11 +36,23 @@ export const messageWorker = new Worker(
         throw new Error(`Meta API Error: ${JSON.stringify(result.error)}`);
       }
 
-      // Log successful send
+      // Log successful send — include userId from the campaign
       const wamid = result.data?.messages?.[0]?.id;
+
+      // Look up userId from campaign (or contact)
+      let userId = '';
+      if (campaignId) {
+        const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+        userId = campaign?.userId || '';
+      }
+      if (!userId) {
+        const contact = await prisma.contact.findUnique({ where: { id: contactId } });
+        userId = contact?.userId || '';
+      }
 
       await prisma.messageLog.create({
         data: {
+          userId,
           contactId,
           campaignId,
           wamid,
@@ -51,13 +63,24 @@ export const messageWorker = new Worker(
       return { success: true, wamid };
     } catch (error: any) {
       // Fix #9: Only write a failure log on the LAST attempt to avoid duplicate rows.
-      // BullMQ is 0-indexed for attemptsMade; opts.attempts is the max total attempts.
       const maxAttempts = job.opts.attempts ?? 1;
       const isLastAttempt = job.attemptsMade >= maxAttempts - 1;
 
       if (isLastAttempt) {
+        // Look up userId from campaign (or contact)
+        let userId = '';
+        if (campaignId) {
+          const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
+          userId = campaign?.userId || '';
+        }
+        if (!userId) {
+          const contact = await prisma.contact.findUnique({ where: { id: contactId } });
+          userId = contact?.userId || '';
+        }
+
         await prisma.messageLog.create({
           data: {
+            userId,
             contactId,
             campaignId,
             status: 'failed',
@@ -71,7 +94,7 @@ export const messageWorker = new Worker(
     }
   },
   {
-    connection: sharedRedisConnection as any, // Fix #5: shared connection
+    connection: sharedRedisConnection as any,
     concurrency: 5,
   }
 );
@@ -83,4 +106,3 @@ messageWorker.on('completed', (job) => {
 messageWorker.on('failed', (job, err) => {
   console.error(`Job ${job?.id} failed with ${err.message}`);
 });
-

@@ -6,6 +6,7 @@ const prisma = new PrismaClient();
 async function main() {
   const email = 'admin@example.com';
   const password = 'Password123!';
+  const name = 'Admin';
 
   console.log('Seeding initial admin user...');
 
@@ -24,6 +25,7 @@ async function main() {
     data: {
       email,
       password: hashedPassword,
+      name,
     },
   });
 

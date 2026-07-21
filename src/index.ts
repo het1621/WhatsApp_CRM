@@ -5,10 +5,11 @@ import webhookRoutes from './routes/webhook';
 import contactsRoutes from './routes/contacts';
 import campaignsRoutes from './routes/campaigns';
 import analyticsRoutes from './routes/analytics';
+import templatesRoutes from './routes/templates';
 import authRoutes from './routes/auth';
 import { requireApiKey } from './middleware/auth';
 import { startCampaignScheduler } from './crons/campaignScheduler';
-import './workers/messageWorker'; // Fix #14: Start the BullMQ worker so queued jobs are processed
+import './workers/messageWorker'; // Start the BullMQ worker so queued jobs are processed
 
 
 const app = express();
@@ -27,6 +28,7 @@ app.use('/webhook', webhookRoutes);
 app.use('/api/contacts', requireApiKey, contactsRoutes);
 app.use('/api/campaigns', requireApiKey, campaignsRoutes);
 app.use('/api/analytics', requireApiKey, analyticsRoutes);
+app.use('/api/templates', requireApiKey, templatesRoutes);
 
 // Start background cron jobs
 startCampaignScheduler();

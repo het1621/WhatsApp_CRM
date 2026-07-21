@@ -7,9 +7,11 @@ import { parse } from 'csv-parse/sync';
 const upload = multer({ storage: multer.memoryStorage() });
 
 const router = Router();
+
 // Create a single contact
 router.post('/', async (req, res) => {
   const { phone, name } = req.body;
+  const userId = req.userId!;
 
   if (!phone) {
     return res.status(400).json({ error: 'Phone number is required' });
@@ -24,6 +26,7 @@ router.post('/', async (req, res) => {
   try {
     const contact = await prisma.contact.create({
       data: {
+        userId,
         phone: normalized.e164 as string,
         name,
       },
@@ -44,6 +47,8 @@ router.post('/bulk', upload.single('file'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No CSV file uploaded' });
   }
+
+  const userId = req.userId!;
 
   try {
     const csvData = req.file.buffer.toString('utf-8');
@@ -72,10 +77,13 @@ router.post('/bulk', upload.single('file'), async (req, res) => {
       }
 
       try {
+        // Use composite unique key (userId, phone)
         await prisma.contact.upsert({
-          where: { phone: normalized.e164 as string },
+          where: {
+            userId_phone: { userId, phone: normalized.e164 as string },
+          },
           update: { name },
-          create: { phone: normalized.e164 as string, name },
+          create: { userId, phone: normalized.e164 as string, name },
         });
         successCount++;
       } catch (err: any) {
@@ -89,13 +97,55 @@ router.post('/bulk', upload.single('file'), async (req, res) => {
   }
 });
 
-// List contacts
+// List contacts (only user's own)
 router.get('/', async (req, res) => {
+  const userId = req.userId!;
+
   try {
     const contacts = await prisma.contact.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
     });
     res.json(contacts);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get single contact
+router.get('/:id', async (req, res) => {
+  const userId = req.userId!;
+
+  try {
+    const contact = await prisma.contact.findFirst({
+      where: { id: req.params.id, userId },
+    });
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    res.json(contact);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete contact
+router.delete('/:id', async (req, res) => {
+  const userId = req.userId!;
+
+  try {
+    const contact = await prisma.contact.findFirst({
+      where: { id: req.params.id, userId },
+    });
+
+    if (!contact) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    await prisma.contact.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Contact deleted' });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

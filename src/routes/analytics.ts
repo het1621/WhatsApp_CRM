@@ -6,10 +6,11 @@ const router = Router();
 // Get overall campaign stats
 router.get('/campaigns/:id', async (req, res) => {
   const { id } = req.params;
+  const userId = req.userId!;
 
   try {
-    const campaign = await prisma.campaign.findUnique({
-      where: { id },
+    const campaign = await prisma.campaign.findFirst({
+      where: { id, userId },
       include: {
         template: true,
       },
@@ -21,7 +22,7 @@ router.get('/campaigns/:id', async (req, res) => {
 
     const logs = await prisma.messageLog.groupBy({
       by: ['status'],
-      where: { campaignId: id },
+      where: { campaignId: id, userId },
       _count: {
         status: true,
       },
@@ -53,10 +54,11 @@ router.get('/campaigns/:id', async (req, res) => {
 // Get recent contact message history
 router.get('/contacts/:id/history', async (req, res) => {
   const { id } = req.params;
+  const userId = req.userId!;
 
   try {
     const history = await prisma.messageLog.findMany({
-      where: { contactId: id },
+      where: { contactId: id, userId },
       orderBy: { createdAt: 'desc' },
       take: 50,
       include: {
