@@ -7,8 +7,8 @@ import CreateTemplateModal from './components/CreateTemplateModal';
 import {
   LayoutDashboard, Users, FileText, Send, Settings, LogOut,
   Plus, Search, Trash2, ChevronRight, MessageCircle,
-  Clock, CheckCircle2, XCircle, Radio, Calendar,
-  ArrowUpRight, Target, BarChart3
+  CheckCircle2, XCircle, Radio, Calendar,
+  ArrowUpRight, Target, BarChart3, Zap
 } from 'lucide-react';
 
 function App() {
@@ -53,55 +53,65 @@ function App() {
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
-  const statusColor = (s: string) => {
+  const statusStyle = (s: string) => {
     switch(s) {
-      case 'completed': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-      case 'running': return 'bg-blue-50 text-blue-700 border-blue-200';
-      case 'scheduled': return 'bg-violet-50 text-violet-700 border-violet-200';
-      case 'failed': return 'bg-red-50 text-red-700 border-red-200';
-      default: return 'bg-amber-50 text-amber-700 border-amber-200';
+      case 'completed': return 'bg-emerald-100 text-emerald-700';
+      case 'running': return 'bg-blue-100 text-blue-700';
+      case 'scheduled': return 'bg-violet-100 text-violet-700';
+      case 'failed': return 'bg-red-100 text-red-700';
+      default: return 'bg-amber-100 text-amber-700';
+    }
+  };
+
+  const statusDot = (s: string) => {
+    switch(s) {
+      case 'completed': return 'bg-emerald-500';
+      case 'running': return 'bg-blue-500 animate-pulse';
+      case 'scheduled': return 'bg-violet-500';
+      case 'failed': return 'bg-red-500';
+      default: return 'bg-amber-500';
     }
   };
 
   return (
-    <div className="flex h-screen bg-[#fafafa]">
-      {/* Sidebar */}
-      <aside className="w-[220px] bg-white border-r border-gray-200 flex flex-col">
+    <div className="flex h-screen bg-gray-50">
+      {/* ——— Sidebar (dark) ——— */}
+      <aside className="w-[230px] bg-gray-900 flex flex-col">
         <div className="px-5 py-5 flex items-center gap-2.5">
-          <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
             <MessageCircle className="w-4 h-4 text-white" />
           </div>
-          <span className="font-semibold text-[15px] text-gray-900 tracking-tight">WhatsApp CRM</span>
+          <span className="font-semibold text-[15px] text-white tracking-tight">WhatsApp CRM</span>
         </div>
 
-        <nav className="flex-1 px-3 mt-2 space-y-0.5">
+        <nav className="flex-1 px-3 mt-1 space-y-0.5">
           {nav.map(item => (
             <button key={item.id} onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all ${
                 activeTab === item.id
-                  ? 'bg-brand-50 text-brand-700'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+                  ? 'bg-emerald-500/15 text-emerald-400'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
               }`}>
-              <item.icon className="w-4 h-4" />
+              <item.icon className="w-[18px] h-[18px]" />
               {item.label}
             </button>
           ))}
         </nav>
 
-        <div className="p-3 border-t border-gray-100">
+        <div className="p-3 border-t border-white/10">
           <button onClick={handleLogout}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors">
             <LogOut className="w-4 h-4" />
             Log out
           </button>
         </div>
       </aside>
 
-      {/* Main */}
+      {/* ——— Main ——— */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-8 py-8">
 
-          {/* DASHBOARD */}
+          {/* ===== DASHBOARD ===== */}
           {activeTab === 'dashboard' && (
             <div className="animate-fade-up">
               <div className="mb-8">
@@ -109,22 +119,51 @@ function App() {
                 <p className="text-sm text-gray-500 mt-0.5">Your WhatsApp CRM at a glance</p>
               </div>
 
+              {/* Stat cards with color accents */}
               <div className="grid grid-cols-4 gap-4 mb-8">
-                {[
-                  { label: 'Contacts', value: contacts.length, icon: Users, change: 'Total' },
-                  { label: 'Templates', value: templates.length, icon: FileText, change: 'Ready' },
-                  { label: 'Campaigns', value: campaigns.length, icon: Send, change: 'All time' },
-                  { label: 'Messages Sent', value: totalSent, icon: CheckCircle2, change: totalFailed > 0 ? `${totalFailed} failed` : 'Across all campaigns' },
-                ].map((stat, i) => (
-                  <div key={i} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-sm transition-shadow">
-                    <div className="flex items-center justify-between mb-3">
-                      <stat.icon className="w-4 h-4 text-gray-400" />
-                      <span className="text-2xs text-gray-400 font-medium">{stat.change}</span>
+                <div className="bg-white rounded-xl p-5 border border-gray-200 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500 rounded-l-xl" />
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center">
+                      <Users className="w-4 h-4 text-emerald-600" />
                     </div>
-                    <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">{stat.label}</p>
                   </div>
-                ))}
+                  <p className="text-2xl font-bold text-gray-900">{contacts.length}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Total Contacts</p>
+                </div>
+
+                <div className="bg-white rounded-xl p-5 border border-gray-200 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-violet-500 rounded-l-xl" />
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-8 h-8 bg-violet-50 rounded-lg flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-violet-600" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">{templates.length}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Templates</p>
+                </div>
+
+                <div className="bg-white rounded-xl p-5 border border-gray-200 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 rounded-l-xl" />
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+                      <Send className="w-4 h-4 text-blue-600" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900">{campaigns.length}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Campaigns</p>
+                </div>
+
+                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl p-5 text-white shadow-lg shadow-emerald-500/15">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="w-8 h-8 bg-white/15 rounded-lg flex items-center justify-center">
+                      <Zap className="w-4 h-4" />
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">{totalSent}</p>
+                  <p className="text-xs text-emerald-100 mt-0.5">Messages Sent</p>
+                  {totalFailed > 0 && <p className="text-xs text-red-200 mt-0.5">{totalFailed} failed</p>}
+                </div>
               </div>
 
               {/* Quick actions */}
@@ -132,20 +171,27 @@ function App() {
                 <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick actions</h3>
                 <div className="grid grid-cols-3 gap-3">
                   {[
-                    { label: 'Add contact', sub: 'Single or CSV import', action: () => setIsAddContactOpen(true), icon: Users },
-                    { label: 'Create template', sub: 'With {{variables}}', action: () => setIsCreateTemplateOpen(true), icon: FileText },
-                    { label: 'New broadcast', sub: 'Send or schedule', action: () => setIsNewBroadcastOpen(true), icon: Send },
+                    { label: 'Add contact', sub: 'Single or CSV import', action: () => setIsAddContactOpen(true), icon: Users, color: 'emerald' },
+                    { label: 'Create template', sub: 'With {{variables}}', action: () => setIsCreateTemplateOpen(true), icon: FileText, color: 'violet' },
+                    { label: 'New broadcast', sub: 'Send or schedule', action: () => setIsNewBroadcastOpen(true), icon: Send, color: 'blue' },
                   ].map((a, i) => (
                     <button key={i} onClick={a.action}
-                      className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-4 hover:border-brand-300 hover:shadow-sm transition-all text-left group">
-                      <div className="w-9 h-9 bg-gray-50 group-hover:bg-brand-50 rounded-lg flex items-center justify-center transition-colors">
-                        <a.icon className="w-4 h-4 text-gray-400 group-hover:text-brand-600 transition-colors" />
+                      className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 hover:shadow-sm transition-all text-left group">
+                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors ${
+                        a.color === 'emerald' ? 'bg-emerald-50 group-hover:bg-emerald-100' :
+                        a.color === 'violet' ? 'bg-violet-50 group-hover:bg-violet-100' :
+                        'bg-blue-50 group-hover:bg-blue-100'
+                      }`}>
+                        <a.icon className={`w-4 h-4 ${
+                          a.color === 'emerald' ? 'text-emerald-600' :
+                          a.color === 'violet' ? 'text-violet-600' : 'text-blue-600'
+                        }`} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900">{a.label}</p>
                         <p className="text-xs text-gray-400">{a.sub}</p>
                       </div>
-                      <ArrowUpRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-500 transition-colors" />
+                      <ArrowUpRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 transition-colors" />
                     </button>
                   ))}
                 </div>
@@ -156,7 +202,7 @@ function App() {
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Recent campaigns</h3>
                   {campaigns.length > 0 && (
-                    <button onClick={() => setActiveTab('campaigns')} className="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">
+                    <button onClick={() => setActiveTab('campaigns')} className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1">
                       View all <ChevronRight className="w-3 h-3" />
                     </button>
                   )}
@@ -168,11 +214,11 @@ function App() {
                     <p className="text-xs text-gray-400 mt-0.5">Create a broadcast to get started</p>
                   </div>
                 ) : (
-                  <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
+                  <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100 overflow-hidden">
                     {campaigns.slice(0, 5).map(camp => (
-                      <div key={camp.id} className="px-5 py-3.5 flex items-center justify-between">
+                      <div key={camp.id} className="px-5 py-3.5 flex items-center justify-between hover:bg-gray-50/50 transition-colors">
                         <div className="flex items-center gap-3">
-                          <div className={`w-1.5 h-1.5 rounded-full ${camp.status === 'completed' ? 'bg-emerald-500' : camp.status === 'running' ? 'bg-blue-500' : camp.status === 'scheduled' ? 'bg-violet-500' : 'bg-gray-400'}`} />
+                          <div className={`w-2 h-2 rounded-full ${statusDot(camp.status)}`} />
                           <div>
                             <p className="text-sm font-medium text-gray-900">{camp.name}</p>
                             <p className="text-xs text-gray-400">{camp.template?.name} · {new Date(camp.createdAt).toLocaleDateString()}</p>
@@ -180,7 +226,7 @@ function App() {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-xs text-gray-500 font-medium">{camp.sentMessages || 0} sent</span>
-                          <span className={`text-2xs font-medium px-2 py-0.5 rounded-md border capitalize ${statusColor(camp.status)}`}>{camp.status}</span>
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${statusStyle(camp.status)}`}>{camp.status}</span>
                         </div>
                       </div>
                     ))}
@@ -190,7 +236,7 @@ function App() {
             </div>
           )}
 
-          {/* CONTACTS */}
+          {/* ===== CONTACTS ===== */}
           {activeTab === 'contacts' && (
             <div className="animate-fade-up">
               <div className="flex justify-between items-center mb-6">
@@ -199,7 +245,7 @@ function App() {
                   <p className="text-sm text-gray-500 mt-0.5">{contacts.length} total contacts</p>
                 </div>
                 <button onClick={() => setIsAddContactOpen(true)}
-                  className="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-600/20">
                   <Plus className="w-4 h-4" /> Add contact
                 </button>
               </div>
@@ -209,30 +255,30 @@ function App() {
                   <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input type="text" value={contactSearch} onChange={e => setContactSearch(e.target.value)}
                     placeholder="Search contacts..."
-                    className="w-full md:w-72 border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
+                    className="w-full md:w-72 border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white" />
                 </div>
               </div>
 
               <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-gray-100">
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</th>
-                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                      <th className="px-5 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-20"></th>
+                    <tr className="border-b border-gray-100 bg-gray-50/50">
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-5 py-3 w-16"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {filteredContacts.length === 0 ? (
                       <tr><td colSpan={4} className="px-5 py-12 text-center text-sm text-gray-400">
-                        {contactSearch ? 'No contacts match your search' : 'No contacts yet. Click "Add contact" to start.'}
+                        {contactSearch ? 'No contacts match your search' : 'No contacts yet.'}
                       </td></tr>
                     ) : filteredContacts.map(c => (
                       <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 bg-brand-50 text-brand-700 rounded-full flex items-center justify-center text-xs font-semibold">
+                            <div className="w-7 h-7 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-xs font-bold">
                               {(c.name || '?')[0].toUpperCase()}
                             </div>
                             <span className="text-sm font-medium text-gray-900">{c.name || 'Unknown'}</span>
@@ -240,8 +286,8 @@ function App() {
                         </td>
                         <td className="px-5 py-3 text-sm text-gray-500 font-mono text-xs">{c.phone}</td>
                         <td className="px-5 py-3">
-                          <span className={`text-2xs font-medium px-2 py-0.5 rounded-md border capitalize ${
-                            c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-500 border-gray-200'
+                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${
+                            c.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
                           }`}>{c.status}</span>
                         </td>
                         <td className="px-5 py-3 text-right">
@@ -257,7 +303,7 @@ function App() {
             </div>
           )}
 
-          {/* TEMPLATES */}
+          {/* ===== TEMPLATES ===== */}
           {activeTab === 'templates' && (
             <div className="animate-fade-up">
               <div className="flex justify-between items-center mb-6">
@@ -266,16 +312,16 @@ function App() {
                   <p className="text-sm text-gray-500 mt-0.5">Reusable message templates with variable support</p>
                 </div>
                 <button onClick={() => setIsCreateTemplateOpen(true)}
-                  className="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-600/20">
                   <Plus className="w-4 h-4" /> New template
                 </button>
               </div>
 
               {templates.length === 0 ? (
-                <div className="bg-white border border-dashed border-gray-300 rounded-xl p-12 text-center">
+                <div className="bg-white border-2 border-dashed border-gray-200 rounded-xl p-12 text-center">
                   <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-gray-900">No templates yet</p>
-                  <p className="text-xs text-gray-400 mt-1">Create your first template to start sending personalized messages</p>
+                  <p className="text-sm font-medium text-gray-700">No templates yet</p>
+                  <p className="text-xs text-gray-400 mt-1">Create your first template to send personalized messages</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -288,15 +334,15 @@ function App() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2.5">
                               <h3 className="text-sm font-semibold text-gray-900">{tpl.name}</h3>
-                              <span className="text-2xs text-gray-400 font-medium bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded">{tpl.language}</span>
+                              <span className="text-[10px] text-gray-400 font-medium bg-gray-100 px-1.5 py-0.5 rounded uppercase">{tpl.language}</span>
                             </div>
                             {content && (
-                              <p className="text-sm text-gray-500 mt-2 leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-100">{content}</p>
+                              <p className="text-sm text-gray-600 mt-2 leading-relaxed bg-gray-50 rounded-lg p-3">{content}</p>
                             )}
                             {vars.length > 0 && (
                               <div className="flex gap-1.5 mt-2.5">
                                 {vars.map((v: string) => (
-                                  <span key={v} className="text-2xs font-mono font-medium bg-violet-50 text-violet-600 border border-violet-200 px-1.5 py-0.5 rounded">{`{{${v}}}`}</span>
+                                  <span key={v} className="text-[11px] font-mono font-semibold bg-violet-50 text-violet-600 px-2 py-0.5 rounded-md">{`{{${v}}}`}</span>
                                 ))}
                               </div>
                             )}
@@ -314,7 +360,7 @@ function App() {
             </div>
           )}
 
-          {/* CAMPAIGNS */}
+          {/* ===== CAMPAIGNS ===== */}
           {activeTab === 'campaigns' && (
             <div className="animate-fade-up">
               <div className="flex justify-between items-center mb-6">
@@ -323,16 +369,16 @@ function App() {
                   <p className="text-sm text-gray-500 mt-0.5">{campaigns.length} campaigns · {totalSent} messages sent</p>
                 </div>
                 <button onClick={() => setIsNewBroadcastOpen(true)}
-                  className="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-600/20">
                   <Plus className="w-4 h-4" /> New broadcast
                 </button>
               </div>
 
               {campaigns.length === 0 ? (
-                <div className="bg-white border border-dashed border-gray-300 rounded-xl p-12 text-center">
+                <div className="bg-white border-2 border-dashed border-gray-200 rounded-xl p-12 text-center">
                   <Send className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-gray-900">No campaigns yet</p>
-                  <p className="text-xs text-gray-400 mt-1">Launch your first broadcast to start reaching contacts</p>
+                  <p className="text-sm font-medium text-gray-700">No campaigns yet</p>
+                  <p className="text-xs text-gray-400 mt-1">Launch your first broadcast</p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -348,12 +394,13 @@ function App() {
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <div className="flex items-center gap-2.5">
+                              <div className={`w-2 h-2 rounded-full ${statusDot(camp.status)}`} />
                               <h3 className="text-sm font-semibold text-gray-900">{camp.name}</h3>
-                              <span className={`text-2xs font-medium px-2 py-0.5 rounded-md border capitalize ${statusColor(camp.status)}`}>{camp.status}</span>
+                              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${statusStyle(camp.status)}`}>{camp.status}</span>
                             </div>
-                            <p className="text-xs text-gray-400 mt-1">
+                            <p className="text-xs text-gray-400 mt-1 ml-[18px]">
                               {camp.template?.name} · {camp.scheduledAt
-                                ? `Scheduled for ${new Date(camp.scheduledAt).toLocaleString()}`
+                                ? <><Calendar className="w-3 h-3 inline" /> Scheduled for {new Date(camp.scheduledAt).toLocaleString()}</>
                                 : new Date(camp.createdAt).toLocaleString()
                               }
                             </p>
@@ -361,20 +408,20 @@ function App() {
                         </div>
 
                         {total > 0 && (
-                          <div className="mb-3">
+                          <div className="mb-3 ml-[18px]">
                             <div className="flex justify-between text-xs text-gray-400 mb-1">
-                              <span>Delivery progress</span>
+                              <span>Delivery</span>
                               <span className="font-medium text-gray-600">{pct}%</span>
                             </div>
                             <div className="w-full bg-gray-100 rounded-full h-1.5">
-                              <div className={`h-1.5 rounded-full transition-all duration-500 ${
-                                camp.status === 'failed' ? 'bg-red-500' : camp.status === 'completed' ? 'bg-emerald-500' : 'bg-brand-500'
+                              <div className={`h-1.5 rounded-full transition-all duration-700 ${
+                                camp.status === 'failed' ? 'bg-red-500' : camp.status === 'completed' ? 'bg-emerald-500' : 'bg-blue-500'
                               }`} style={{ width: `${pct}%` }} />
                             </div>
                           </div>
                         )}
 
-                        <div className="flex gap-5 text-xs text-gray-500">
+                        <div className="flex gap-5 text-xs text-gray-500 ml-[18px]">
                           <span className="flex items-center gap-1"><Target className="w-3 h-3 text-gray-400" />{total} targeted</span>
                           <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-500" />{sent} sent</span>
                           {failed > 0 && <span className="flex items-center gap-1"><XCircle className="w-3 h-3 text-red-400" />{failed} failed</span>}
@@ -388,7 +435,7 @@ function App() {
             </div>
           )}
 
-          {/* SETTINGS */}
+          {/* ===== SETTINGS ===== */}
           {activeTab === 'settings' && (
             <div className="animate-fade-up">
               <div className="mb-8">
@@ -399,7 +446,7 @@ function App() {
               <div className="max-w-lg space-y-6">
                 <div className="bg-white border border-gray-200 rounded-xl p-6">
                   <h3 className="text-sm font-semibold text-gray-900 mb-1">API Configuration</h3>
-                  <p className="text-xs text-gray-400 mb-5">Connect your Meta Business credentials to enable message delivery.</p>
+                  <p className="text-xs text-gray-400 mb-5">Connect your Meta Business credentials to enable delivery.</p>
 
                   <div className="space-y-4">
                     {[
@@ -411,11 +458,11 @@ function App() {
                       <div key={i}>
                         <label className="block text-xs font-medium text-gray-600 mb-1.5">{field.label}</label>
                         <input type={field.type || 'text'} placeholder={field.placeholder}
-                          className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
+                          className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white" />
                       </div>
                     ))}
                   </div>
-                  <button className="mt-5 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                  <button className="mt-5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-emerald-600/20">
                     Save credentials
                   </button>
                 </div>
@@ -423,7 +470,8 @@ function App() {
                 <div className="bg-white border border-gray-200 rounded-xl p-6">
                   <h3 className="text-sm font-semibold text-gray-900 mb-1">Account</h3>
                   <p className="text-xs text-gray-400 mb-3">Currently signed in as:</p>
-                  <div className="bg-gray-50 rounded-lg px-3.5 py-2.5 border border-gray-100">
+                  <div className="bg-gray-50 rounded-lg px-3.5 py-2.5 border border-gray-100 flex items-center gap-2">
+                    <div className="w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-[10px] font-bold">A</div>
                     <p className="text-sm text-gray-700 font-mono">admin@example.com</p>
                   </div>
                 </div>
