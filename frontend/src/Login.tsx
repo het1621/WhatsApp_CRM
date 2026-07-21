@@ -3,25 +3,27 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 export default function Login() {
+  const [isSignup, setIsSignup] = useState(false);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     try {
-      const response = await axios.post('http://localhost:3001/api/auth/login', {
-        email,
-        password,
-      });
+      const endpoint = isSignup ? '/api/auth/signup' : '/api/auth/login';
+      const payload = isSignup ? { name, email, password } : { email, password };
+      
+      const response = await axios.post(`http://localhost:3001${endpoint}`, payload);
 
       localStorage.setItem('token', response.data.token);
       navigate('/');
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to login');
+      setError(err.response?.data?.error || `Failed to ${isSignup ? 'sign up' : 'login'}`);
     }
   };
 
@@ -36,13 +38,29 @@ export default function Login() {
           <h2 className="text-3xl font-extrabold text-white">
             WhatsApp <span className="text-whatsapp-light">CRM</span>
           </h2>
-          <p className="text-gray-300 mt-2">Sign in to your account</p>
+          <p className="text-gray-300 mt-2">
+            {isSignup ? 'Create a new account' : 'Sign in to your account'}
+          </p>
         </div>
 
-        <form className="space-y-6" onSubmit={handleLogin}>
+        <form className="space-y-6" onSubmit={handleSubmit}>
           {error && (
             <div className="bg-red-500/20 border border-red-500/50 text-red-200 p-3 rounded-xl text-sm text-center">
               {error}
+            </div>
+          )}
+
+          {isSignup && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
+              <input
+                type="text"
+                required
+                className="w-full bg-black/20 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-whatsapp-light transition-all"
+                placeholder="John Doe"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
             </div>
           )}
 
@@ -63,6 +81,7 @@ export default function Login() {
             <input
               type="password"
               required
+              minLength={isSignup ? 8 : undefined}
               className="w-full bg-black/20 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-whatsapp-light transition-all"
               placeholder="••••••••"
               value={password}
@@ -74,8 +93,21 @@ export default function Login() {
             type="submit"
             className="w-full bg-whatsapp-dark hover:bg-whatsapp-darker text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg shadow-whatsapp-dark/30 transform hover:-translate-y-0.5"
           >
-            Sign In
+            {isSignup ? 'Create Account' : 'Sign In'}
           </button>
+          
+          <div className="text-center mt-4">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignup(!isSignup);
+                setError('');
+              }}
+              className="text-whatsapp-light hover:text-white text-sm transition-colors"
+            >
+              {isSignup ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+            </button>
+          </div>
         </form>
       </div>
     </div>
