@@ -4,6 +4,12 @@ import api from './api';
 import AddContactModal from './components/AddContactModal';
 import NewBroadcastModal from './components/NewBroadcastModal';
 import CreateTemplateModal from './components/CreateTemplateModal';
+import {
+  LayoutDashboard, Users, FileText, Send, Settings, LogOut,
+  Plus, Search, Trash2, ChevronRight, MessageCircle,
+  Clock, CheckCircle2, XCircle, Radio, Calendar,
+  ArrowUpRight, Target, BarChart3
+} from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -11,50 +17,22 @@ function App() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [contactSearch, setContactSearch] = useState('');
-  
+
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [isNewBroadcastOpen, setIsNewBroadcastOpen] = useState(false);
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
-  
+
   const navigate = useNavigate();
+  const handleLogout = () => { localStorage.removeItem('token'); navigate('/login'); };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
-  };
+  const fetchContacts = () => { api.get('/contacts').then(r => setContacts(r.data)).catch(e => { if (e.response?.status === 401) handleLogout(); }); };
+  const fetchCampaigns = () => { api.get('/campaigns').then(r => setCampaigns(r.data)).catch(e => { if (e.response?.status === 401) handleLogout(); }); };
+  const fetchTemplates = () => { api.get('/templates').then(r => setTemplates(r.data)).catch(e => { if (e.response?.status === 401) handleLogout(); }); };
 
-  const fetchContacts = () => {
-    api.get('/contacts').then(res => setContacts(res.data)).catch(err => { if (err.response?.status === 401) handleLogout(); });
-  };
-  const fetchCampaigns = () => {
-    api.get('/campaigns').then(res => setCampaigns(res.data)).catch(err => { if (err.response?.status === 401) handleLogout(); });
-  };
-  const fetchTemplates = () => {
-    api.get('/templates').then(res => setTemplates(res.data)).catch(err => { if (err.response?.status === 401) handleLogout(); });
-  };
+  const deleteContact = async (id: string) => { if (!confirm('Remove this contact?')) return; try { await api.delete(`/contacts/${id}`); fetchContacts(); } catch {} };
+  const deleteTemplate = async (id: string) => { if (!confirm('Delete this template?')) return; try { await api.delete(`/templates/${id}`); fetchTemplates(); } catch {} };
 
-  const deleteContact = async (id: string) => {
-    if (!confirm('Delete this contact?')) return;
-    try {
-      await api.delete(`/contacts/${id}`);
-      fetchContacts();
-    } catch (err) { console.error(err); }
-  };
-
-  const deleteTemplate = async (id: string) => {
-    if (!confirm('Delete this template?')) return;
-    try {
-      await api.delete(`/templates/${id}`);
-      fetchTemplates();
-    } catch (err) { console.error(err); }
-  };
-
-  useEffect(() => {
-    fetchContacts();
-    fetchCampaigns();
-    fetchTemplates();
-  }, []);
-
+  useEffect(() => { fetchContacts(); fetchCampaigns(); fetchTemplates(); }, []);
   useEffect(() => {
     if (activeTab === 'contacts') fetchContacts();
     else if (activeTab === 'campaigns') fetchCampaigns();
@@ -62,209 +40,147 @@ function App() {
   }, [activeTab]);
 
   const filteredContacts = contacts.filter(c =>
-    (c.name || '').toLowerCase().includes(contactSearch.toLowerCase()) ||
-    c.phone.includes(contactSearch)
+    (c.name || '').toLowerCase().includes(contactSearch.toLowerCase()) || c.phone.includes(contactSearch)
   );
+  const totalSent = campaigns.reduce((s, c) => s + (c.sentMessages || 0), 0);
+  const totalFailed = campaigns.reduce((s, c) => s + (c.failedMessages || 0), 0);
 
-  const totalSent = campaigns.reduce((sum, c) => sum + (c.sentMessages || 0), 0);
-  const totalFailed = campaigns.reduce((sum, c) => sum + (c.failedMessages || 0), 0);
-
-  const tabs = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'contacts', label: 'Contacts', icon: '👥', badge: contacts.length },
-    { id: 'templates', label: 'Templates', icon: '📄', badge: templates.length },
-    { id: 'campaigns', label: 'Campaigns', icon: '🚀', badge: campaigns.length },
-    { id: 'settings', label: 'Settings', icon: '⚙️' },
+  const nav = [
+    { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
+    { id: 'contacts', label: 'Contacts', icon: Users },
+    { id: 'templates', label: 'Templates', icon: FileText },
+    { id: 'campaigns', label: 'Campaigns', icon: Send },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
+  const statusColor = (s: string) => {
+    switch(s) {
+      case 'completed': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+      case 'running': return 'bg-blue-50 text-blue-700 border-blue-200';
+      case 'scheduled': return 'bg-violet-50 text-violet-700 border-violet-200';
+      case 'failed': return 'bg-red-50 text-red-700 border-red-200';
+      default: return 'bg-amber-50 text-amber-700 border-amber-200';
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-[#0f172a] overflow-hidden">
-      {/* ——— Sidebar ——— */}
-      <aside className="w-64 bg-slate-900/80 border-r border-slate-700/50 flex flex-col">
-        {/* Brand */}
-        <div className="p-6 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-white leading-tight">WhatsApp CRM</h1>
-              <p className="text-xs text-slate-500">Broadcast Platform</p>
-            </div>
+    <div className="flex h-screen bg-[#fafafa]">
+      {/* Sidebar */}
+      <aside className="w-[220px] bg-white border-r border-gray-200 flex flex-col">
+        <div className="px-5 py-5 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
+            <MessageCircle className="w-4 h-4 text-white" />
           </div>
+          <span className="font-semibold text-[15px] text-gray-900 tracking-tight">WhatsApp CRM</span>
         </div>
 
-        {/* Nav Links */}
-        <nav className="flex-1 px-3 space-y-1">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${
-                activeTab === tab.id
-                  ? 'bg-emerald-500/15 text-emerald-400 shadow-sm'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              <span className="text-lg">{tab.icon}</span>
-              <span className="flex-1 text-left">{tab.label}</span>
-              {tab.badge !== undefined && tab.badge > 0 && (
-                <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                  activeTab === tab.id ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700 text-slate-400'
-                }`}>
-                  {tab.badge}
-                </span>
-              )}
+        <nav className="flex-1 px-3 mt-2 space-y-0.5">
+          {nav.map(item => (
+            <button key={item.id} onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                activeTab === item.id
+                  ? 'bg-brand-50 text-brand-700'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'
+              }`}>
+              <item.icon className="w-4 h-4" />
+              {item.label}
             </button>
           ))}
         </nav>
 
-        {/* User footer */}
-        <div className="p-4 border-t border-slate-700/50">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-colors"
-          >
-            <span>🚪</span>
-            <span>Log Out</span>
+        <div className="p-3 border-t border-gray-100">
+          <button onClick={handleLogout}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+            <LogOut className="w-4 h-4" />
+            Log out
           </button>
         </div>
       </aside>
 
-      {/* ——— Main Content ——— */}
+      {/* Main */}
       <main className="flex-1 overflow-y-auto">
-        <div className="max-w-6xl mx-auto p-8">
+        <div className="max-w-5xl mx-auto px-8 py-8">
 
-          {/* ===== DASHBOARD ===== */}
+          {/* DASHBOARD */}
           {activeTab === 'dashboard' && (
-            <div className="animate-fade-in">
+            <div className="animate-fade-up">
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-white">Dashboard</h2>
-                <p className="text-slate-400 mt-1">Overview of your WhatsApp CRM performance</p>
+                <h2 className="text-xl font-semibold text-gray-900">Overview</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Your WhatsApp CRM at a glance</p>
               </div>
 
-              {/* Stat cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-                <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-2xl">👥</span>
-                    <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg">Active</span>
+              <div className="grid grid-cols-4 gap-4 mb-8">
+                {[
+                  { label: 'Contacts', value: contacts.length, icon: Users, change: 'Total' },
+                  { label: 'Templates', value: templates.length, icon: FileText, change: 'Ready' },
+                  { label: 'Campaigns', value: campaigns.length, icon: Send, change: 'All time' },
+                  { label: 'Messages Sent', value: totalSent, icon: CheckCircle2, change: totalFailed > 0 ? `${totalFailed} failed` : 'Across all campaigns' },
+                ].map((stat, i) => (
+                  <div key={i} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-sm transition-shadow">
+                    <div className="flex items-center justify-between mb-3">
+                      <stat.icon className="w-4 h-4 text-gray-400" />
+                      <span className="text-2xs text-gray-400 font-medium">{stat.change}</span>
+                    </div>
+                    <p className="text-2xl font-semibold text-gray-900">{stat.value}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{stat.label}</p>
                   </div>
-                  <p className="text-3xl font-bold text-white">{contacts.length}</p>
-                  <p className="text-xs text-slate-500 mt-1">Total Contacts</p>
-                </div>
+                ))}
+              </div>
 
-                <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-2xl">📄</span>
-                    <span className="text-xs font-semibold text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded-lg">Ready</span>
-                  </div>
-                  <p className="text-3xl font-bold text-white">{templates.length}</p>
-                  <p className="text-xs text-slate-500 mt-1">Templates</p>
+              {/* Quick actions */}
+              <div className="mb-8">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick actions</h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: 'Add contact', sub: 'Single or CSV import', action: () => setIsAddContactOpen(true), icon: Users },
+                    { label: 'Create template', sub: 'With {{variables}}', action: () => setIsCreateTemplateOpen(true), icon: FileText },
+                    { label: 'New broadcast', sub: 'Send or schedule', action: () => setIsNewBroadcastOpen(true), icon: Send },
+                  ].map((a, i) => (
+                    <button key={i} onClick={a.action}
+                      className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl p-4 hover:border-brand-300 hover:shadow-sm transition-all text-left group">
+                      <div className="w-9 h-9 bg-gray-50 group-hover:bg-brand-50 rounded-lg flex items-center justify-center transition-colors">
+                        <a.icon className="w-4 h-4 text-gray-400 group-hover:text-brand-600 transition-colors" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{a.label}</p>
+                        <p className="text-xs text-gray-400">{a.sub}</p>
+                      </div>
+                      <ArrowUpRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-brand-500 transition-colors" />
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-2xl">🚀</span>
-                    <span className="text-xs font-semibold text-violet-400 bg-violet-500/10 px-2 py-1 rounded-lg">Campaigns</span>
-                  </div>
-                  <p className="text-3xl font-bold text-white">{campaigns.length}</p>
-                  <p className="text-xs text-slate-500 mt-1">Total Campaigns</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 border border-emerald-500/20 rounded-2xl p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-2xl">✉️</span>
-                    <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg">Sent</span>
-                  </div>
-                  <p className="text-3xl font-bold text-emerald-400">{totalSent}</p>
-                  <p className="text-xs text-slate-500 mt-1">Messages Sent</p>
-                  {totalFailed > 0 && (
-                    <p className="text-xs text-red-400 mt-1">{totalFailed} failed</p>
+              {/* Recent campaigns */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Recent campaigns</h3>
+                  {campaigns.length > 0 && (
+                    <button onClick={() => setActiveTab('campaigns')} className="text-xs text-brand-600 hover:text-brand-700 font-medium flex items-center gap-1">
+                      View all <ChevronRight className="w-3 h-3" />
+                    </button>
                   )}
                 </div>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="mb-8">
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Quick Actions</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <button
-                    onClick={() => setIsAddContactOpen(true)}
-                    className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 hover:bg-slate-800 hover:border-emerald-500/30 transition-all group text-left"
-                  >
-                    <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
-                      <span className="text-2xl">➕</span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-white">Add Contact</p>
-                      <p className="text-xs text-slate-500">Single or bulk CSV import</p>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => setIsCreateTemplateOpen(true)}
-                    className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 hover:bg-slate-800 hover:border-cyan-500/30 transition-all group text-left"
-                  >
-                    <div className="w-12 h-12 bg-cyan-500/10 rounded-xl flex items-center justify-center group-hover:bg-cyan-500/20 transition-colors">
-                      <span className="text-2xl">📝</span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-white">Create Template</p>
-                      <p className="text-xs text-slate-500">With {"{{variable}}"} support</p>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => setIsNewBroadcastOpen(true)}
-                    className="flex items-center gap-4 bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 hover:bg-slate-800 hover:border-violet-500/30 transition-all group text-left"
-                  >
-                    <div className="w-12 h-12 bg-violet-500/10 rounded-xl flex items-center justify-center group-hover:bg-violet-500/20 transition-colors">
-                      <span className="text-2xl">📡</span>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-white">New Broadcast</p>
-                      <p className="text-xs text-slate-500">Send now or schedule later</p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-
-              {/* Recent Campaigns */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Recent Campaigns</h3>
                 {campaigns.length === 0 ? (
-                  <div className="bg-slate-800/30 border border-slate-700/30 rounded-2xl p-8 text-center">
-                    <p className="text-slate-500">No campaigns yet. Create your first broadcast!</p>
+                  <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
+                    <BarChart3 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                    <p className="text-sm text-gray-500">No campaigns yet</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Create a broadcast to get started</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
                     {campaigns.slice(0, 5).map(camp => (
-                      <div key={camp.id} className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex items-center justify-between hover:bg-slate-800/70 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-2.5 h-2.5 rounded-full ${
-                            camp.status === 'completed' ? 'bg-emerald-400' :
-                            camp.status === 'running' ? 'bg-blue-400 animate-pulse-dot' :
-                            camp.status === 'scheduled' ? 'bg-purple-400' :
-                            camp.status === 'failed' ? 'bg-red-400' : 'bg-yellow-400'
-                          }`} />
+                      <div key={camp.id} className="px-5 py-3.5 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-1.5 h-1.5 rounded-full ${camp.status === 'completed' ? 'bg-emerald-500' : camp.status === 'running' ? 'bg-blue-500' : camp.status === 'scheduled' ? 'bg-violet-500' : 'bg-gray-400'}`} />
                           <div>
-                            <p className="font-medium text-white text-sm">{camp.name}</p>
-                            <p className="text-xs text-slate-500">{camp.template?.name} • {new Date(camp.createdAt).toLocaleDateString()}</p>
+                            <p className="text-sm font-medium text-gray-900">{camp.name}</p>
+                            <p className="text-xs text-gray-400">{camp.template?.name} · {new Date(camp.createdAt).toLocaleDateString()}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-4 text-xs">
-                          <span className="text-emerald-400 font-semibold">✅ {camp.sentMessages}</span>
-                          {camp.failedMessages > 0 && <span className="text-red-400 font-semibold">❌ {camp.failedMessages}</span>}
-                          <span className={`px-2.5 py-1 rounded-lg font-semibold capitalize ${
-                            camp.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
-                            camp.status === 'running' ? 'bg-blue-500/10 text-blue-400' :
-                            camp.status === 'scheduled' ? 'bg-purple-500/10 text-purple-400' :
-                            camp.status === 'failed' ? 'bg-red-500/10 text-red-400' :
-                            'bg-yellow-500/10 text-yellow-400'
-                          }`}>{camp.status}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs text-gray-500 font-medium">{camp.sentMessages || 0} sent</span>
+                          <span className={`text-2xs font-medium px-2 py-0.5 rounded-md border capitalize ${statusColor(camp.status)}`}>{camp.status}</span>
                         </div>
                       </div>
                     ))}
@@ -274,66 +190,64 @@ function App() {
             </div>
           )}
 
-          {/* ===== CONTACTS ===== */}
+          {/* CONTACTS */}
           {activeTab === 'contacts' && (
-            <div className="animate-fade-in">
+            <div className="animate-fade-up">
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Contacts</h2>
-                  <p className="text-slate-400 text-sm mt-1">{contacts.length} contacts in your database</p>
+                  <h2 className="text-xl font-semibold text-gray-900">Contacts</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">{contacts.length} total contacts</p>
                 </div>
-                <button
-                  onClick={() => setIsAddContactOpen(true)}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-emerald-500/20 flex items-center gap-2"
-                >
-                  <span>+</span> Add Contact
+                <button onClick={() => setIsAddContactOpen(true)}
+                  className="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
+                  <Plus className="w-4 h-4" /> Add contact
                 </button>
               </div>
 
-              {/* Search */}
-              <div className="mb-5">
-                <input
-                  type="text"
-                  value={contactSearch}
-                  onChange={e => setContactSearch(e.target.value)}
-                  placeholder="Search by name or phone..."
-                  className="w-full md:w-80 bg-slate-800/50 border border-slate-700/50 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/30 transition-all"
-                />
+              <div className="mb-4">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input type="text" value={contactSearch} onChange={e => setContactSearch(e.target.value)}
+                    placeholder="Search contacts..."
+                    className="w-full md:w-72 border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
+                </div>
               </div>
 
-              <div className="bg-slate-800/30 border border-slate-700/30 rounded-2xl overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-slate-800/50 border-b border-slate-700/50">
-                    <tr>
-                      <th className="px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
-                      <th className="px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Phone</th>
-                      <th className="px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">Actions</th>
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-100">
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Phone</th>
+                      <th className="px-5 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                      <th className="px-5 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider w-20"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-700/30">
+                  <tbody className="divide-y divide-gray-50">
                     {filteredContacts.length === 0 ? (
-                      <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-500">
-                        {contactSearch ? 'No contacts match your search.' : 'No contacts yet. Click "Add Contact" to get started.'}
+                      <tr><td colSpan={4} className="px-5 py-12 text-center text-sm text-gray-400">
+                        {contactSearch ? 'No contacts match your search' : 'No contacts yet. Click "Add contact" to start.'}
                       </td></tr>
                     ) : filteredContacts.map(c => (
-                      <tr key={c.id} className="hover:bg-slate-800/30 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-emerald-500/10 rounded-full flex items-center justify-center text-emerald-400 text-sm font-bold">
+                      <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-7 h-7 bg-brand-50 text-brand-700 rounded-full flex items-center justify-center text-xs font-semibold">
                               {(c.name || '?')[0].toUpperCase()}
                             </div>
-                            <span className="text-sm font-medium text-white">{c.name || 'Unknown'}</span>
+                            <span className="text-sm font-medium text-gray-900">{c.name || 'Unknown'}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-400 font-mono">{c.phone}</td>
-                        <td className="px-6 py-4">
-                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg capitalize ${
-                            c.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                        <td className="px-5 py-3 text-sm text-gray-500 font-mono text-xs">{c.phone}</td>
+                        <td className="px-5 py-3">
+                          <span className={`text-2xs font-medium px-2 py-0.5 rounded-md border capitalize ${
+                            c.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-50 text-gray-500 border-gray-200'
                           }`}>{c.status}</span>
                         </td>
-                        <td className="px-6 py-4">
-                          <button onClick={() => deleteContact(c.id)} className="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>
+                        <td className="px-5 py-3 text-right">
+                          <button onClick={() => deleteContact(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -343,62 +257,53 @@ function App() {
             </div>
           )}
 
-          {/* ===== TEMPLATES ===== */}
+          {/* TEMPLATES */}
           {activeTab === 'templates' && (
-            <div className="animate-fade-in">
+            <div className="animate-fade-up">
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Templates</h2>
-                  <p className="text-slate-400 text-sm mt-1">Create reusable message templates with {"{{variables}}"}</p>
+                  <h2 className="text-xl font-semibold text-gray-900">Templates</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">Reusable message templates with variable support</p>
                 </div>
-                <button
-                  onClick={() => setIsCreateTemplateOpen(true)}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-emerald-500/20 flex items-center gap-2"
-                >
-                  <span>+</span> Create Template
+                <button onClick={() => setIsCreateTemplateOpen(true)}
+                  className="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
+                  <Plus className="w-4 h-4" /> New template
                 </button>
               </div>
 
               {templates.length === 0 ? (
-                <div className="bg-slate-800/30 border border-dashed border-slate-600/50 rounded-2xl p-12 text-center">
-                  <span className="text-5xl mb-4 block">📄</span>
-                  <p className="text-slate-400 mb-2">No templates yet</p>
-                  <p className="text-sm text-slate-500">Create your first template to start sending personalized messages</p>
+                <div className="bg-white border border-dashed border-gray-300 rounded-xl p-12 text-center">
+                  <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-gray-900">No templates yet</p>
+                  <p className="text-xs text-gray-400 mt-1">Create your first template to start sending personalized messages</p>
                 </div>
               ) : (
-                <div className="grid gap-4">
+                <div className="space-y-3">
                   {templates.map(tpl => {
                     const content = tpl.components?.[0]?.text || '';
                     const vars = tpl.components?.[0]?.variables || [];
                     return (
-                      <div key={tpl.id} className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 hover:bg-slate-800/70 transition-colors group">
+                      <div key={tpl.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-sm transition-shadow group">
                         <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h3 className="font-semibold text-white">{tpl.name}</h3>
-                              <span className="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-medium">{tpl.language}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2.5">
+                              <h3 className="text-sm font-semibold text-gray-900">{tpl.name}</h3>
+                              <span className="text-2xs text-gray-400 font-medium bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded">{tpl.language}</span>
                             </div>
-                            {/* Template content preview */}
-                            <div className="bg-slate-900/50 rounded-xl p-4 mt-3 border border-slate-700/30">
-                              <p className="text-sm text-slate-300 leading-relaxed">
-                                {content || <span className="text-slate-500 italic">No content</span>}
-                              </p>
-                            </div>
+                            {content && (
+                              <p className="text-sm text-gray-500 mt-2 leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-100">{content}</p>
+                            )}
                             {vars.length > 0 && (
-                              <div className="flex gap-2 mt-3 flex-wrap">
+                              <div className="flex gap-1.5 mt-2.5">
                                 {vars.map((v: string) => (
-                                  <span key={v} className="text-xs bg-cyan-500/10 text-cyan-400 px-2.5 py-1 rounded-lg font-mono">
-                                    {`{{${v}}}`}
-                                  </span>
+                                  <span key={v} className="text-2xs font-mono font-medium bg-violet-50 text-violet-600 border border-violet-200 px-1.5 py-0.5 rounded">{`{{${v}}}`}</span>
                                 ))}
                               </div>
                             )}
                           </div>
-                          <button
-                            onClick={() => deleteTemplate(tpl.id)}
-                            className="text-xs text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition-all ml-4"
-                          >
-                            Delete
+                          <button onClick={() => deleteTemplate(tpl.id)}
+                            className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all ml-4">
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -409,30 +314,28 @@ function App() {
             </div>
           )}
 
-          {/* ===== CAMPAIGNS ===== */}
+          {/* CAMPAIGNS */}
           {activeTab === 'campaigns' && (
-            <div className="animate-fade-in">
+            <div className="animate-fade-up">
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h2 className="text-2xl font-bold text-white">Campaigns</h2>
-                  <p className="text-slate-400 text-sm mt-1">{campaigns.length} campaigns • {totalSent} messages sent</p>
+                  <h2 className="text-xl font-semibold text-gray-900">Campaigns</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">{campaigns.length} campaigns · {totalSent} messages sent</p>
                 </div>
-                <button
-                  onClick={() => setIsNewBroadcastOpen(true)}
-                  className="bg-gradient-to-r from-violet-500 to-indigo-600 hover:from-violet-600 hover:to-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-violet-500/20 flex items-center gap-2"
-                >
-                  🚀 New Broadcast
+                <button onClick={() => setIsNewBroadcastOpen(true)}
+                  className="bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5">
+                  <Plus className="w-4 h-4" /> New broadcast
                 </button>
               </div>
 
               {campaigns.length === 0 ? (
-                <div className="bg-slate-800/30 border border-dashed border-slate-600/50 rounded-2xl p-12 text-center">
-                  <span className="text-5xl mb-4 block">🚀</span>
-                  <p className="text-slate-400 mb-2">No campaigns yet</p>
-                  <p className="text-sm text-slate-500">Create your first broadcast to reach your contacts</p>
+                <div className="bg-white border border-dashed border-gray-300 rounded-xl p-12 text-center">
+                  <Send className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-gray-900">No campaigns yet</p>
+                  <p className="text-xs text-gray-400 mt-1">Launch your first broadcast to start reaching contacts</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {campaigns.map(camp => {
                     const total = camp.totalMessages || 0;
                     const sent = camp.sentMessages || 0;
@@ -441,75 +344,41 @@ function App() {
                     const pct = total > 0 ? Math.round((sent / total) * 100) : 0;
 
                     return (
-                      <div key={camp.id} className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-5 hover:bg-slate-800/70 transition-colors">
-                        <div className="flex justify-between items-start mb-4">
+                      <div key={camp.id} className="bg-white border border-gray-200 rounded-xl p-5 hover:shadow-sm transition-shadow">
+                        <div className="flex justify-between items-start mb-3">
                           <div>
-                            <div className="flex items-center gap-3">
-                              <div className={`w-2.5 h-2.5 rounded-full ${
-                                camp.status === 'completed' ? 'bg-emerald-400' :
-                                camp.status === 'running' ? 'bg-blue-400 animate-pulse-dot' :
-                                camp.status === 'scheduled' ? 'bg-purple-400 animate-pulse-dot' :
-                                camp.status === 'failed' ? 'bg-red-400' : 'bg-yellow-400'
-                              }`} />
-                              <h3 className="font-semibold text-white">{camp.name}</h3>
-                              <span className={`text-xs px-2.5 py-1 rounded-lg font-semibold capitalize ${
-                                camp.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
-                                camp.status === 'running' ? 'bg-blue-500/10 text-blue-400' :
-                                camp.status === 'scheduled' ? 'bg-purple-500/10 text-purple-400' :
-                                camp.status === 'failed' ? 'bg-red-500/10 text-red-400' :
-                                'bg-yellow-500/10 text-yellow-400'
-                              }`}>{camp.status}</span>
+                            <div className="flex items-center gap-2.5">
+                              <h3 className="text-sm font-semibold text-gray-900">{camp.name}</h3>
+                              <span className={`text-2xs font-medium px-2 py-0.5 rounded-md border capitalize ${statusColor(camp.status)}`}>{camp.status}</span>
                             </div>
-                            <p className="text-xs text-slate-500 mt-1">
-                              Template: {camp.template?.name || 'N/A'} • {camp.scheduledAt
-                                ? `Scheduled: ${new Date(camp.scheduledAt).toLocaleString()}`
+                            <p className="text-xs text-gray-400 mt-1">
+                              {camp.template?.name} · {camp.scheduledAt
+                                ? `Scheduled for ${new Date(camp.scheduledAt).toLocaleString()}`
                                 : new Date(camp.createdAt).toLocaleString()
                               }
                             </p>
                           </div>
                         </div>
 
-                        {/* Progress bar */}
                         {total > 0 && (
                           <div className="mb-3">
-                            <div className="flex justify-between text-xs text-slate-400 mb-1.5">
-                              <span>Progress</span>
-                              <span>{pct}%</span>
+                            <div className="flex justify-between text-xs text-gray-400 mb-1">
+                              <span>Delivery progress</span>
+                              <span className="font-medium text-gray-600">{pct}%</span>
                             </div>
-                            <div className="w-full bg-slate-700/50 rounded-full h-2">
-                              <div
-                                className={`h-2 rounded-full transition-all duration-500 ${
-                                  camp.status === 'failed' ? 'bg-red-500' :
-                                  camp.status === 'completed' ? 'bg-emerald-500' : 'bg-blue-500'
-                                }`}
-                                style={{ width: `${pct}%` }}
-                              />
+                            <div className="w-full bg-gray-100 rounded-full h-1.5">
+                              <div className={`h-1.5 rounded-full transition-all duration-500 ${
+                                camp.status === 'failed' ? 'bg-red-500' : camp.status === 'completed' ? 'bg-emerald-500' : 'bg-brand-500'
+                              }`} style={{ width: `${pct}%` }} />
                             </div>
                           </div>
                         )}
 
-                        {/* Stats row */}
-                        <div className="flex gap-6 text-sm">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-slate-500">🎯</span>
-                            <span className="text-slate-400"><b className="text-white">{total}</b> targeted</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-emerald-400">✅</span>
-                            <span className="text-slate-400"><b className="text-emerald-400">{sent}</b> sent</span>
-                          </div>
-                          {failed > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-red-400">❌</span>
-                              <span className="text-slate-400"><b className="text-red-400">{failed}</b> failed</span>
-                            </div>
-                          )}
-                          {delivered > 0 && (
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-blue-400">📬</span>
-                              <span className="text-slate-400"><b className="text-blue-400">{delivered}</b> delivered</span>
-                            </div>
-                          )}
+                        <div className="flex gap-5 text-xs text-gray-500">
+                          <span className="flex items-center gap-1"><Target className="w-3 h-3 text-gray-400" />{total} targeted</span>
+                          <span className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-emerald-500" />{sent} sent</span>
+                          {failed > 0 && <span className="flex items-center gap-1"><XCircle className="w-3 h-3 text-red-400" />{failed} failed</span>}
+                          {delivered > 0 && <span className="flex items-center gap-1"><Radio className="w-3 h-3 text-blue-500" />{delivered} delivered</span>}
                         </div>
                       </div>
                     );
@@ -519,49 +388,43 @@ function App() {
             </div>
           )}
 
-          {/* ===== SETTINGS ===== */}
+          {/* SETTINGS */}
           {activeTab === 'settings' && (
-            <div className="animate-fade-in">
+            <div className="animate-fade-up">
               <div className="mb-8">
-                <h2 className="text-2xl font-bold text-white">Settings</h2>
-                <p className="text-slate-400 text-sm mt-1">Configure your WhatsApp Business API credentials</p>
+                <h2 className="text-xl font-semibold text-gray-900">Settings</h2>
+                <p className="text-sm text-gray-500 mt-0.5">Manage your WhatsApp Business API credentials</p>
               </div>
 
-              <div className="space-y-6 max-w-2xl">
-                <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
-                  <h3 className="font-semibold text-white mb-1">WhatsApp Business API</h3>
-                  <p className="text-xs text-slate-500 mb-5">Enter your Meta for Developers credentials to enable message sending.</p>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Phone Number ID</label>
-                      <input type="text" placeholder="e.g. 102938475610293" className="w-full bg-slate-900/50 border border-slate-600/50 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Access Token</label>
-                      <input type="password" placeholder="EAAx..." className="w-full bg-slate-900/50 border border-slate-600/50 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">WABA ID</label>
-                      <input type="text" placeholder="e.g. 1234567890" className="w-full bg-slate-900/50 border border-slate-600/50 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">Webhook Verify Token</label>
-                      <input type="text" placeholder="your_secure_token" className="w-full bg-slate-900/50 border border-slate-600/50 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 transition-all" />
-                    </div>
-                  </div>
+              <div className="max-w-lg space-y-6">
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">API Configuration</h3>
+                  <p className="text-xs text-gray-400 mb-5">Connect your Meta Business credentials to enable message delivery.</p>
 
-                  <button className="mt-6 bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-emerald-500/20">
-                    Save Credentials
+                  <div className="space-y-4">
+                    {[
+                      { label: 'Phone Number ID', placeholder: 'e.g. 102938475610293' },
+                      { label: 'Access Token', placeholder: 'EAAx...', type: 'password' },
+                      { label: 'WABA ID', placeholder: 'e.g. 1234567890' },
+                      { label: 'Webhook Verify Token', placeholder: 'your_verify_token' },
+                    ].map((field, i) => (
+                      <div key={i}>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">{field.label}</label>
+                        <input type={field.type || 'text'} placeholder={field.placeholder}
+                          className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
+                      </div>
+                    ))}
+                  </div>
+                  <button className="mt-5 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                    Save credentials
                   </button>
-                  <p className="text-xs text-slate-500 mt-3">🔒 Credentials are stored securely per-user and never shared across tenants.</p>
                 </div>
 
-                <div className="bg-slate-800/50 border border-slate-700/50 rounded-2xl p-6">
-                  <h3 className="font-semibold text-white mb-1">Account Info</h3>
-                  <p className="text-xs text-slate-500 mb-4">Your login details</p>
-                  <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-700/30">
-                    <p className="text-sm text-slate-300">Logged in as: <span className="text-emerald-400 font-mono">admin@example.com</span></p>
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Account</h3>
+                  <p className="text-xs text-gray-400 mb-3">Currently signed in as:</p>
+                  <div className="bg-gray-50 rounded-lg px-3.5 py-2.5 border border-gray-100">
+                    <p className="text-sm text-gray-700 font-mono">admin@example.com</p>
                   </div>
                 </div>
               </div>
@@ -571,7 +434,6 @@ function App() {
         </div>
       </main>
 
-      {/* Modals */}
       <AddContactModal isOpen={isAddContactOpen} onClose={() => setIsAddContactOpen(false)} onSuccess={fetchContacts} />
       <NewBroadcastModal isOpen={isNewBroadcastOpen} onClose={() => setIsNewBroadcastOpen(false)} onSuccess={fetchCampaigns} />
       <CreateTemplateModal isOpen={isCreateTemplateOpen} onClose={() => setIsCreateTemplateOpen(false)} onSuccess={fetchTemplates} />
