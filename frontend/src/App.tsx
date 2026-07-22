@@ -73,7 +73,7 @@ function App() {
       setTimeout(() => setSettingsMsg(''), 3000);
     } catch (err: any) {
       setSettingsMsg(err.response?.data?.error || 'Failed to save settings');
-    } flex {
+    } finally {
       setSettingsLoading(false);
     }
   };
