@@ -11,7 +11,7 @@ import {
   Plus, Search, Trash2, Edit2, ChevronRight, MessageCircle,
   CheckCircle2, XCircle, Radio, Calendar, Copy, Check,
   ArrowUpRight, Target, BarChart3, Zap, ShieldCheck,
-  ChevronDown, ChevronUp, Link as LinkIcon
+  ChevronDown, ChevronUp, Link as LinkIcon, AlertCircle
 } from 'lucide-react';
 
 function App() {
@@ -73,14 +73,20 @@ function App() {
       setTimeout(() => setSettingsMsg(''), 3000);
     } catch (err: any) {
       setSettingsMsg(err.response?.data?.error || 'Failed to save settings');
-    } finally {
+    } flex {
       setSettingsLoading(false);
     }
   };
 
   // Meta Embedded Signup (1-Click Facebook OAuth)
   const launchFacebookEmbeddedSignup = () => {
-    const appId = (import.meta as any).env?.VITE_FACEBOOK_APP_ID || '100000000000000';
+    const appId = (import.meta as any).env?.VITE_FACEBOOK_APP_ID;
+    
+    if (!appId || appId === 'your_meta_app_id_here') {
+      setSettingsMsg('To use 1-Click Facebook Connect, add VITE_FACEBOOK_APP_ID in frontend/.env file or use "Advanced: Manual Credentials Entry" below.');
+      setShowManualSettings(true);
+      return;
+    }
     
     // Check if FB SDK is loaded or trigger FB.login directly
     if (typeof (window as any).FB !== 'undefined') {
@@ -602,8 +608,9 @@ function App() {
                   </p>
 
                   {settingsMsg && (
-                    <div className={`text-xs p-3 rounded-lg mb-4 ${settingsMsg.includes('Success') || settingsMsg.includes('saved') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-                      {settingsMsg}
+                    <div className={`text-xs p-3 rounded-lg mb-4 flex items-start gap-2 ${settingsMsg.includes('Success') || settingsMsg.includes('saved') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-800 border border-amber-200'}`}>
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{settingsMsg}</span>
                     </div>
                   )}
 
