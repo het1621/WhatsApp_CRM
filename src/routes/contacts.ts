@@ -77,7 +77,6 @@ router.post('/bulk', upload.single('file'), async (req, res) => {
       }
 
       try {
-        // Use composite unique key (userId, phone)
         await prisma.contact.upsert({
           where: {
             userId_phone: { userId, phone: normalized.e164 as string },
@@ -128,6 +127,46 @@ router.get('/:id', async (req, res) => {
     res.json(contact);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Update contact
+router.put('/:id', async (req, res) => {
+  const userId = req.userId!;
+  const { name, phone, status } = req.body;
+
+  try {
+    const existing = await prisma.contact.findFirst({
+      where: { id: req.params.id, userId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (status !== undefined) updateData.status = status;
+    if (phone) {
+      const normalized = phoneNormalizer.normalizeSingle(phone);
+      if (!normalized.valid) {
+        return res.status(400).json({ error: `Invalid phone number: ${normalized.error}` });
+      }
+      updateData.phone = normalized.e164;
+    }
+
+    const updated = await prisma.contact.update({
+      where: { id: req.params.id },
+      data: updateData,
+    });
+
+    res.json(updated);
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      res.status(409).json({ error: 'Phone number already exists for another contact' });
+    } else {
+      res.status(500).json({ error: error.message });
+    }
   }
 });
 

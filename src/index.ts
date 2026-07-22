@@ -6,6 +6,7 @@ import contactsRoutes from './routes/contacts';
 import campaignsRoutes from './routes/campaigns';
 import analyticsRoutes from './routes/analytics';
 import templatesRoutes from './routes/templates';
+import settingsRoutes from './routes/settings';
 import authRoutes from './routes/auth';
 import { requireApiKey } from './middleware/auth';
 import { startCampaignScheduler } from './crons/campaignScheduler';
@@ -29,6 +30,7 @@ app.use('/api/contacts', requireApiKey, contactsRoutes);
 app.use('/api/campaigns', requireApiKey, campaignsRoutes);
 app.use('/api/analytics', requireApiKey, analyticsRoutes);
 app.use('/api/templates', requireApiKey, templatesRoutes);
+app.use('/api/settings', requireApiKey, settingsRoutes);
 
 // Start background cron jobs
 startCampaignScheduler();

@@ -3,6 +3,47 @@ import prisma from '../lib/prisma';
 
 const router = Router();
 
+// GET aggregated analytics overview
+router.get('/overview', async (req, res) => {
+  const userId = req.userId!;
+
+  try {
+    const totalContacts = await prisma.contact.count({ where: { userId } });
+    const totalCampaigns = await prisma.campaign.count({ where: { userId } });
+    const totalTemplates = await prisma.template.count({ where: { userId } });
+
+    const campaigns = await prisma.campaign.findMany({
+      where: { userId },
+      select: {
+        totalMessages: true,
+        sentMessages: true,
+        failedMessages: true,
+        deliveredCount: true,
+      },
+    });
+
+    const totalTargeted = campaigns.reduce((sum, c) => sum + c.totalMessages, 0);
+    const totalSent = campaigns.reduce((sum, c) => sum + c.sentMessages, 0);
+    const totalFailed = campaigns.reduce((sum, c) => sum + c.failedMessages, 0);
+    const totalDelivered = campaigns.reduce((sum, c) => sum + c.deliveredCount, 0);
+
+    const deliveryRate = totalSent > 0 ? Math.round((totalDelivered / totalSent) * 100) : 100;
+
+    res.json({
+      totalContacts,
+      totalCampaigns,
+      totalTemplates,
+      totalTargeted,
+      totalSent,
+      totalFailed,
+      totalDelivered,
+      deliveryRate,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get overall campaign stats
 router.get('/campaigns/:id', async (req, res) => {
   const { id } = req.params;

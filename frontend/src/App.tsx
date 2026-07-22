@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from './api';
 import AddContactModal from './components/AddContactModal';
+import EditContactModal from './components/EditContactModal';
 import NewBroadcastModal from './components/NewBroadcastModal';
 import CreateTemplateModal from './components/CreateTemplateModal';
+import EditTemplateModal from './components/EditTemplateModal';
 import {
   LayoutDashboard, Users, FileText, Send, Settings, LogOut,
-  Plus, Search, Trash2, ChevronRight, MessageCircle,
-  CheckCircle2, XCircle, Radio, Calendar,
-  ArrowUpRight, Target, BarChart3, Zap
+  Plus, Search, Trash2, Edit2, ChevronRight, MessageCircle,
+  CheckCircle2, XCircle, Radio, Calendar, Copy, Check,
+  ArrowUpRight, Target, BarChart3, Zap, ShieldCheck
 } from 'lucide-react';
 
 function App() {
@@ -16,11 +18,24 @@ function App() {
   const [contacts, setContacts] = useState<any[]>([]);
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<any>(null);
   const [contactSearch, setContactSearch] = useState('');
 
+  // Modals state
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [isNewBroadcastOpen, setIsNewBroadcastOpen] = useState(false);
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState<any | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+
+  // Settings form state
+  const [phoneNumberId, setPhoneNumberId] = useState('');
+  const [accessToken, setAccessToken] = useState('');
+  const [wabaId, setWabaId] = useState('');
+  const [appSecret, setAppSecret] = useState('');
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsMsg, setSettingsMsg] = useState('');
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
 
   const navigate = useNavigate();
   const handleLogout = () => { localStorage.removeItem('token'); navigate('/login'); };
@@ -28,22 +43,56 @@ function App() {
   const fetchContacts = () => { api.get('/contacts').then(r => setContacts(r.data)).catch(e => { if (e.response?.status === 401) handleLogout(); }); };
   const fetchCampaigns = () => { api.get('/campaigns').then(r => setCampaigns(r.data)).catch(e => { if (e.response?.status === 401) handleLogout(); }); };
   const fetchTemplates = () => { api.get('/templates').then(r => setTemplates(r.data)).catch(e => { if (e.response?.status === 401) handleLogout(); }); };
+  const fetchAnalytics = () => { api.get('/analytics/overview').then(r => setAnalytics(r.data)).catch(() => {}); };
+  const fetchSettings = () => {
+    api.get('/settings').then(r => {
+      setPhoneNumberId(r.data.phoneNumberId || '');
+      setWabaId(r.data.wabaId || '');
+      setAppSecret(r.data.appSecret || '');
+    }).catch(() => {});
+  };
 
   const deleteContact = async (id: string) => { if (!confirm('Remove this contact?')) return; try { await api.delete(`/contacts/${id}`); fetchContacts(); } catch {} };
   const deleteTemplate = async (id: string) => { if (!confirm('Delete this template?')) return; try { await api.delete(`/templates/${id}`); fetchTemplates(); } catch {} };
 
-  useEffect(() => { fetchContacts(); fetchCampaigns(); fetchTemplates(); }, []);
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSettingsLoading(true);
+    setSettingsMsg('');
+    try {
+      await api.put('/settings', { phoneNumberId, accessToken, wabaId, appSecret });
+      setSettingsMsg('Settings saved successfully!');
+      setTimeout(() => setSettingsMsg(''), 3000);
+    } catch (err: any) {
+      setSettingsMsg(err.response?.data?.error || 'Failed to save settings');
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchContacts();
+    fetchCampaigns();
+    fetchTemplates();
+    fetchAnalytics();
+    fetchSettings();
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'contacts') fetchContacts();
     else if (activeTab === 'campaigns') fetchCampaigns();
     else if (activeTab === 'templates') fetchTemplates();
+    else if (activeTab === 'dashboard') { fetchContacts(); fetchCampaigns(); fetchAnalytics(); }
+    else if (activeTab === 'settings') fetchSettings();
   }, [activeTab]);
 
   const filteredContacts = contacts.filter(c =>
     (c.name || '').toLowerCase().includes(contactSearch.toLowerCase()) || c.phone.includes(contactSearch)
   );
-  const totalSent = campaigns.reduce((s, c) => s + (c.sentMessages || 0), 0);
-  const totalFailed = campaigns.reduce((s, c) => s + (c.failedMessages || 0), 0);
+
+  const totalSent = analytics?.totalSent || campaigns.reduce((s, c) => s + (c.sentMessages || 0), 0);
+  const totalFailed = analytics?.totalFailed || campaigns.reduce((s, c) => s + (c.failedMessages || 0), 0);
+  const deliveryRate = analytics?.deliveryRate ?? 100;
 
   const nav = [
     { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -73,9 +122,17 @@ function App() {
     }
   };
 
+  const webhookUrl = `${window.location.protocol}//${window.location.hostname}:3001/webhook`;
+
+  const copyWebhook = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    setCopiedWebhook(true);
+    setTimeout(() => setCopiedWebhook(false), 2000);
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* ——— Sidebar (dark) ——— */}
+      {/* Sidebar */}
       <aside className="w-[230px] bg-gray-900 flex flex-col">
         <div className="px-5 py-5 flex items-center gap-2.5">
           <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center">
@@ -107,7 +164,7 @@ function App() {
         </div>
       </aside>
 
-      {/* ——— Main ——— */}
+      {/* Main */}
       <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-8 py-8">
 
@@ -116,10 +173,10 @@ function App() {
             <div className="animate-fade-up">
               <div className="mb-8">
                 <h2 className="text-xl font-semibold text-gray-900">Overview</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Your WhatsApp CRM at a glance</p>
+                <p className="text-sm text-gray-500 mt-0.5">Your WhatsApp CRM performance analytics</p>
               </div>
 
-              {/* Stat cards with color accents */}
+              {/* Stat cards */}
               <div className="grid grid-cols-4 gap-4 mb-8">
                 <div className="bg-white rounded-xl p-5 border border-gray-200 relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500 rounded-l-xl" />
@@ -159,6 +216,7 @@ function App() {
                     <div className="w-8 h-8 bg-white/15 rounded-lg flex items-center justify-center">
                       <Zap className="w-4 h-4" />
                     </div>
+                    <span className="text-2xs font-bold bg-white/20 px-2 py-0.5 rounded-full">{deliveryRate}% Rate</span>
                   </div>
                   <p className="text-2xl font-bold">{totalSent}</p>
                   <p className="text-xs text-emerald-100 mt-0.5">Messages Sent</p>
@@ -266,7 +324,7 @@ function App() {
                       <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                       <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
                       <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-5 py-3 w-16"></th>
+                      <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -290,7 +348,10 @@ function App() {
                             c.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
                           }`}>{c.status}</span>
                         </td>
-                        <td className="px-5 py-3 text-right">
+                        <td className="px-5 py-3 text-right flex items-center justify-end gap-2">
+                          <button onClick={() => setEditingContact(c)} className="text-gray-400 hover:text-emerald-600 transition-colors">
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
                           <button onClick={() => deleteContact(c.id)} className="text-gray-300 hover:text-red-500 transition-colors">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -347,10 +408,16 @@ function App() {
                               </div>
                             )}
                           </div>
-                          <button onClick={() => deleteTemplate(tpl.id)}
-                            className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all ml-4">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center gap-2 ml-4">
+                            <button onClick={() => setEditingTemplate(tpl)}
+                              className="text-gray-400 hover:text-emerald-600 opacity-0 group-hover:opacity-100 transition-all">
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => deleteTemplate(tpl.id)}
+                              className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -440,36 +507,115 @@ function App() {
             <div className="animate-fade-up">
               <div className="mb-8">
                 <h2 className="text-xl font-semibold text-gray-900">Settings</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Manage your WhatsApp Business API credentials</p>
+                <p className="text-sm text-gray-500 mt-0.5">Manage your WhatsApp Business API credentials & webhooks</p>
               </div>
 
               <div className="max-w-lg space-y-6">
-                <div className="bg-white border border-gray-200 rounded-xl p-6">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">API Configuration</h3>
-                  <p className="text-xs text-gray-400 mb-5">Connect your Meta Business credentials to enable delivery.</p>
+                {/* Meta API Credentials Form */}
+                <form onSubmit={handleSaveSettings} className="bg-white border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" /> WhatsApp API Credentials
+                  </h3>
+                  <p className="text-xs text-gray-400 mb-5">Saved securely in database per user account.</p>
+
+                  {settingsMsg && (
+                    <div className={`text-xs p-3 rounded-lg mb-4 ${settingsMsg.includes('success') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                      {settingsMsg}
+                    </div>
+                  )}
 
                   <div className="space-y-4">
-                    {[
-                      { label: 'Phone Number ID', placeholder: 'e.g. 102938475610293' },
-                      { label: 'Access Token', placeholder: 'EAAx...', type: 'password' },
-                      { label: 'WABA ID', placeholder: 'e.g. 1234567890' },
-                      { label: 'Webhook Verify Token', placeholder: 'your_verify_token' },
-                    ].map((field, i) => (
-                      <div key={i}>
-                        <label className="block text-xs font-medium text-gray-600 mb-1.5">{field.label}</label>
-                        <input type={field.type || 'text'} placeholder={field.placeholder}
-                          className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white" />
-                      </div>
-                    ))}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Phone Number ID</label>
+                      <input
+                        type="text"
+                        value={phoneNumberId}
+                        onChange={e => setPhoneNumberId(e.target.value)}
+                        placeholder="e.g. 102938475610293"
+                        className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Access Token</label>
+                      <input
+                        type="password"
+                        value={accessToken}
+                        onChange={e => setAccessToken(e.target.value)}
+                        placeholder="Leave blank to keep existing token..."
+                        className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">WABA ID (Business Account ID)</label>
+                      <input
+                        type="text"
+                        value={wabaId}
+                        onChange={e => setWabaId(e.target.value)}
+                        placeholder="e.g. 1234567890"
+                        className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">App Secret</label>
+                      <input
+                        type="password"
+                        value={appSecret}
+                        onChange={e => setAppSecret(e.target.value)}
+                        placeholder="Meta App Secret..."
+                        className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
+                      />
+                    </div>
                   </div>
-                  <button className="mt-5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-emerald-600/20">
-                    Save credentials
+
+                  <button
+                    type="submit"
+                    disabled={settingsLoading}
+                    className="mt-5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-emerald-600/20 disabled:opacity-60"
+                  >
+                    {settingsLoading ? 'Saving...' : 'Save credentials'}
                   </button>
+                </form>
+
+                {/* Webhook Setup Instructions Card */}
+                <div className="bg-white border border-gray-200 rounded-xl p-6">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                    <Radio className="w-4 h-4 text-blue-600" /> Meta Webhook Configuration
+                  </h3>
+                  <p className="text-xs text-gray-400 mb-4">Paste this URL into your Meta for Developers App dashboard under Webhooks configuration.</p>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Callback URL</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={webhookUrl}
+                          className="flex-1 border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-xs font-mono text-gray-700"
+                        />
+                        <button
+                          onClick={copyWebhook}
+                          className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-xs font-medium transition-colors flex items-center gap-1"
+                        >
+                          {copiedWebhook ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                          {copiedWebhook ? 'Copied' : 'Copy'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-800 leading-relaxed">
+                      <b>Verification Token:</b> Matches <code className="bg-white px-1 py-0.5 rounded font-mono">whatsapp_crm_verify_token</code> (or <code>WEBHOOK_VERIFY_TOKEN</code> in your <code>.env</code>).
+                    </div>
+                  </div>
                 </div>
 
+                {/* Account Info */}
                 <div className="bg-white border border-gray-200 rounded-xl p-6">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Account</h3>
-                  <p className="text-xs text-gray-400 mb-3">Currently signed in as:</p>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Account Info</h3>
+                  <p className="text-xs text-gray-400 mb-3">Logged in user session:</p>
                   <div className="bg-gray-50 rounded-lg px-3.5 py-2.5 border border-gray-100 flex items-center gap-2">
                     <div className="w-6 h-6 bg-emerald-100 text-emerald-700 rounded-full flex items-center justify-center text-[10px] font-bold">A</div>
                     <p className="text-sm text-gray-700 font-mono">admin@example.com</p>
@@ -483,8 +629,10 @@ function App() {
       </main>
 
       <AddContactModal isOpen={isAddContactOpen} onClose={() => setIsAddContactOpen(false)} onSuccess={fetchContacts} />
+      <EditContactModal contact={editingContact} isOpen={!!editingContact} onClose={() => setEditingContact(null)} onSuccess={fetchContacts} />
       <NewBroadcastModal isOpen={isNewBroadcastOpen} onClose={() => setIsNewBroadcastOpen(false)} onSuccess={fetchCampaigns} />
       <CreateTemplateModal isOpen={isCreateTemplateOpen} onClose={() => setIsCreateTemplateOpen(false)} onSuccess={fetchTemplates} />
+      <EditTemplateModal template={editingTemplate} isOpen={!!editingTemplate} onClose={() => setEditingTemplate(null)} onSuccess={fetchTemplates} />
     </div>
   );
 }
