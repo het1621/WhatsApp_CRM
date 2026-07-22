@@ -10,7 +10,8 @@ import {
   LayoutDashboard, Users, FileText, Send, Settings, LogOut,
   Plus, Search, Trash2, Edit2, ChevronRight, MessageCircle,
   CheckCircle2, XCircle, Radio, Calendar, Copy, Check,
-  ArrowUpRight, Target, BarChart3, Zap, ShieldCheck
+  ArrowUpRight, Target, BarChart3, Zap, ShieldCheck,
+  ChevronDown, ChevronUp, Link as LinkIcon
 } from 'lucide-react';
 
 function App() {
@@ -28,11 +29,14 @@ function App() {
   const [editingContact, setEditingContact] = useState<any | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
 
-  // Settings form state
+  // Settings state
   const [phoneNumberId, setPhoneNumberId] = useState('');
   const [accessToken, setAccessToken] = useState('');
   const [wabaId, setWabaId] = useState('');
   const [appSecret, setAppSecret] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [hasToken, setHasToken] = useState(false);
+  const [showManualSettings, setShowManualSettings] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState('');
   const [copiedWebhook, setCopiedWebhook] = useState(false);
@@ -49,6 +53,8 @@ function App() {
       setPhoneNumberId(r.data.phoneNumberId || '');
       setWabaId(r.data.wabaId || '');
       setAppSecret(r.data.appSecret || '');
+      setIsConnected(!!r.data.isConnected);
+      setHasToken(!!r.data.hasToken);
     }).catch(() => {});
   };
 
@@ -60,8 +66,10 @@ function App() {
     setSettingsLoading(true);
     setSettingsMsg('');
     try {
-      await api.put('/settings', { phoneNumberId, accessToken, wabaId, appSecret });
+      const res = await api.put('/settings', { phoneNumberId, accessToken, wabaId, appSecret });
       setSettingsMsg('Settings saved successfully!');
+      setIsConnected(res.data.settings?.isConnected || false);
+      setHasToken(res.data.settings?.hasToken || false);
       setTimeout(() => setSettingsMsg(''), 3000);
     } catch (err: any) {
       setSettingsMsg(err.response?.data?.error || 'Failed to save settings');
@@ -69,6 +77,69 @@ function App() {
       setSettingsLoading(false);
     }
   };
+
+  // Meta Embedded Signup (1-Click Facebook OAuth)
+  const launchFacebookEmbeddedSignup = () => {
+    const appId = (import.meta as any).env?.VITE_FACEBOOK_APP_ID || '100000000000000';
+    
+    // Check if FB SDK is loaded or trigger FB.login directly
+    if (typeof (window as any).FB !== 'undefined') {
+      (window as any).FB.login((response: any) => {
+        if (response.authResponse) {
+          const code = response.authResponse.code;
+          handleEmbeddedSignupCallback({ code });
+        } else {
+          setSettingsMsg('Facebook authentication was canceled.');
+        }
+      }, {
+        config_id: (import.meta as any).env?.VITE_EMBEDDED_SIGNUP_CONFIG_ID,
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          featureType: 'whatsapp_business_messaging',
+        }
+      });
+    } else {
+      // Fallback popup if FB SDK is not on window
+      const popupUrl = `https://www.facebook.com/v19.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(window.location.origin + '/settings')}&scope=whatsapp_business_messaging,whatsapp_business_management&response_type=code`;
+      window.open(popupUrl, 'Facebook Embedded Signup', 'width=600,height=700');
+    }
+  };
+
+  const handleEmbeddedSignupCallback = async (data: { code?: string; wabaId?: string; phoneNumberId?: string; accessToken?: string }) => {
+    setSettingsLoading(true);
+    setSettingsMsg('');
+    try {
+      const res = await api.post('/settings/embedded-signup', data);
+      setSettingsMsg('WhatsApp Connected Successfully!');
+      setIsConnected(true);
+      setHasToken(true);
+      fetchSettings();
+      setTimeout(() => setSettingsMsg(''), 4000);
+    } catch (err: any) {
+      setSettingsMsg(err.response?.data?.error || 'Embedded signup failed');
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  // Window event listener for Meta's postMessage embedded signup response
+  useEffect(() => {
+    const sessionInfoListener = (event: MessageEvent) => {
+      if (event.origin.includes('facebook.com') || event.origin.includes('meta.com')) {
+        try {
+          const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+          if (data.type === 'WA_EMBEDDED_SIGNUP') {
+            const { waba_id, phone_number_id, code } = data.data || {};
+            handleEmbeddedSignupCallback({ wabaId: waba_id, phoneNumberId: phone_number_id, code });
+          }
+        } catch {}
+      }
+    };
+    window.addEventListener('message', sessionInfoListener);
+    return () => window.removeEventListener('message', sessionInfoListener);
+  }, []);
 
   useEffect(() => {
     fetchContacts();
@@ -507,77 +578,114 @@ function App() {
             <div className="animate-fade-up">
               <div className="mb-8">
                 <h2 className="text-xl font-semibold text-gray-900">Settings</h2>
-                <p className="text-sm text-gray-500 mt-0.5">Manage your WhatsApp Business API credentials & webhooks</p>
+                <p className="text-sm text-gray-500 mt-0.5">Manage your WhatsApp Business API connection & webhooks</p>
               </div>
 
               <div className="max-w-lg space-y-6">
-                {/* Meta API Credentials Form */}
-                <form onSubmit={handleSaveSettings} className="bg-white border border-gray-200 rounded-xl p-6">
-                  <h3 className="text-sm font-semibold text-gray-900 mb-1 flex items-center gap-2">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" /> WhatsApp API Credentials
-                  </h3>
-                  <p className="text-xs text-gray-400 mb-5">Saved securely in database per user account.</p>
+
+                {/* 1-Click Meta Embedded Signup Card */}
+                <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" /> WhatsApp Connection Status
+                    </h3>
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 ${
+                      isConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                      {isConnected ? 'Connected' : 'Not Connected'}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-gray-500 leading-relaxed mb-5">
+                    Connect your official WhatsApp Business number with 1-click using Facebook OAuth. No technical setup required!
+                  </p>
 
                   {settingsMsg && (
-                    <div className={`text-xs p-3 rounded-lg mb-4 ${settingsMsg.includes('success') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                    <div className={`text-xs p-3 rounded-lg mb-4 ${settingsMsg.includes('Success') || settingsMsg.includes('saved') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
                       {settingsMsg}
                     </div>
                   )}
 
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Phone Number ID</label>
-                      <input
-                        type="text"
-                        value={phoneNumberId}
-                        onChange={e => setPhoneNumberId(e.target.value)}
-                        placeholder="e.g. 102938475610293"
-                        className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Access Token</label>
-                      <input
-                        type="password"
-                        value={accessToken}
-                        onChange={e => setAccessToken(e.target.value)}
-                        placeholder="Leave blank to keep existing token..."
-                        className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">WABA ID (Business Account ID)</label>
-                      <input
-                        type="text"
-                        value={wabaId}
-                        onChange={e => setWabaId(e.target.value)}
-                        placeholder="e.g. 1234567890"
-                        className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1.5">App Secret</label>
-                      <input
-                        type="password"
-                        value={appSecret}
-                        onChange={e => setAppSecret(e.target.value)}
-                        placeholder="Meta App Secret..."
-                        className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
-                      />
-                    </div>
-                  </div>
-
+                  {/* Facebook 1-Click Connect Button */}
                   <button
-                    type="submit"
-                    disabled={settingsLoading}
-                    className="mt-5 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm shadow-emerald-600/20 disabled:opacity-60"
+                    onClick={launchFacebookEmbeddedSignup}
+                    className="w-full bg-[#1877F2] hover:bg-[#166fe5] text-white font-medium py-3 px-4 rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-sm shadow-[#1877F2]/20"
                   >
-                    {settingsLoading ? 'Saving...' : 'Save credentials'}
+                    <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                    </svg>
+                    {isConnected ? 'Re-connect WhatsApp with Facebook' : 'Connect WhatsApp with Facebook'}
                   </button>
-                </form>
+
+                  {/* Expandable Manual Credentials Fallback */}
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => setShowManualSettings(!showManualSettings)}
+                      className="text-xs text-gray-500 hover:text-gray-700 font-medium flex items-center gap-1.5 transition-colors"
+                    >
+                      <LinkIcon className="w-3.5 h-3.5" />
+                      {showManualSettings ? 'Hide Manual Technical Settings' : 'Advanced: Manual Credentials Entry'}
+                      {showManualSettings ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </button>
+
+                    {showManualSettings && (
+                      <form onSubmit={handleSaveSettings} className="mt-4 space-y-4 animate-fade-in pt-2">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">Phone Number ID</label>
+                          <input
+                            type="text"
+                            value={phoneNumberId}
+                            onChange={e => setPhoneNumberId(e.target.value)}
+                            placeholder="e.g. 102938475610293"
+                            className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">Access Token</label>
+                          <input
+                            type="password"
+                            value={accessToken}
+                            onChange={e => setAccessToken(e.target.value)}
+                            placeholder="Leave blank to keep existing token..."
+                            className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">WABA ID (Business Account ID)</label>
+                          <input
+                            type="text"
+                            value={wabaId}
+                            onChange={e => setWabaId(e.target.value)}
+                            placeholder="e.g. 1234567890"
+                            className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1.5">App Secret</label>
+                          <input
+                            type="password"
+                            value={appSecret}
+                            onChange={e => setAppSecret(e.target.value)}
+                            placeholder="Meta App Secret..."
+                            className="w-full border border-gray-300 rounded-lg px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition bg-white"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={settingsLoading}
+                          className="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-60"
+                        >
+                          {settingsLoading ? 'Saving...' : 'Save Manual Credentials'}
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                </div>
 
                 {/* Webhook Setup Instructions Card */}
                 <div className="bg-white border border-gray-200 rounded-xl p-6">
