@@ -162,10 +162,13 @@ router.post('/', async (req, res) => {
 
         // Build variables array for Meta API template messages
         let variables: string[] = [];
+        const templateVarCount = templateComponents?.[0]?.variables?.length || 0;
         if (customVariables && customVariables[contact.id]) {
           variables = Object.values(customVariables[contact.id]);
-        } else {
+        } else if (templateVarCount > 0) {
           variables = contact.name ? [contact.name] : [];
+        } else {
+          variables = [];
         }
 
         await enqueueMessage({

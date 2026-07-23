@@ -4,26 +4,57 @@ import { createMetaClient } from '../lib/metaClient';
 import { config } from '../config';
 import { MessageJobData, sharedRedisConnection } from './messageQueue';
 
-const metaClient = createMetaClient(
-  config.meta.phoneNumberId,
-  config.meta.accessToken,
-  config.meta.appSecret,
-  config.meta.wabaId
-);
-
 export const messageWorker = new Worker(
   'whatsapp-messages',
   async (job: Job<MessageJobData>) => {
     const { contactId, campaignId, phoneNumber, templateName, textBody, variables } = job.data;
 
     try {
+      // 1. Look up campaign and user to get per-tenant Meta credentials
+      let campaign = null;
+      let user = null;
+      let template = null;
+
+      if (campaignId) {
+        campaign = await prisma.campaign.findUnique({
+          where: { id: campaignId },
+          include: { user: true, template: true },
+        });
+        user = campaign?.user;
+        template = campaign?.template;
+      }
+
+      if (!user && contactId) {
+        const contact = await prisma.contact.findUnique({
+          where: { id: contactId },
+          include: { user: true },
+        });
+        user = contact?.user;
+      }
+
+      // Use user's saved Meta credentials from DB, fallback to config .env
+      const phoneNumberId = user?.whatsappPhoneNumberId || config.meta.phoneNumberId;
+      const accessToken = user?.whatsappAccessToken || config.meta.accessToken;
+      const appSecret = user?.whatsappAppSecret || config.meta.appSecret;
+      const wabaId = user?.whatsappWabaId || config.meta.wabaId;
+
+      if (!phoneNumberId || !accessToken) {
+        throw new Error('No WhatsApp Phone Number ID or Access Token configured for this user');
+      }
+
+      // Dynamically create client with user's credentials
+      const metaClient = createMetaClient(phoneNumberId, accessToken, appSecret || '', wabaId || '');
+
       let result;
 
       if (templateName) {
+        // Use template language from DB or default to 'en_US'
+        const languageCode = template?.language || 'en_US';
+
         result = await metaClient.sendTemplateMessage(
           phoneNumber,
           templateName,
-          'en', // default language
+          languageCode,
           variables || []
         );
       } else if (textBody) {
@@ -36,19 +67,9 @@ export const messageWorker = new Worker(
         throw new Error(`Meta API Error: ${JSON.stringify(result.error)}`);
       }
 
-      // Log successful send — include userId from the campaign
+      // Log successful send — include userId
       const wamid = result.data?.messages?.[0]?.id;
-
-      // Look up userId from campaign (or contact)
-      let userId = '';
-      if (campaignId) {
-        const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
-        userId = campaign?.userId || '';
-      }
-      if (!userId) {
-        const contact = await prisma.contact.findUnique({ where: { id: contactId } });
-        userId = contact?.userId || '';
-      }
+      const userId = user?.id || '';
 
       await prisma.messageLog.create({
         data: {
@@ -60,20 +81,22 @@ export const messageWorker = new Worker(
         },
       });
 
+      console.log(`✅ Message successfully sent via Meta Cloud API! WAMID: ${wamid}`);
       return { success: true, wamid };
     } catch (error: any) {
-      // Fix #9: Only write a failure log on the LAST attempt to avoid duplicate rows.
+      console.error(`❌ Message delivery failed:`, error.message);
+
+      // Only write failure log on LAST attempt to avoid duplicate rows
       const maxAttempts = job.opts.attempts ?? 1;
       const isLastAttempt = job.attemptsMade >= maxAttempts - 1;
 
       if (isLastAttempt) {
-        // Look up userId from campaign (or contact)
         let userId = '';
         if (campaignId) {
           const campaign = await prisma.campaign.findUnique({ where: { id: campaignId } });
           userId = campaign?.userId || '';
         }
-        if (!userId) {
+        if (!userId && contactId) {
           const contact = await prisma.contact.findUnique({ where: { id: contactId } });
           userId = contact?.userId || '';
         }

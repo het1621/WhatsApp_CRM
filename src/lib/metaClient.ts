@@ -168,16 +168,18 @@ export class MetaClient {
     error?: MetaErrorResponse;
   }> {
     try {
-      // Convert variables to Meta API format
-      const components = [
-        {
-          type: 'body',
-          parameters: variables.map((variable) => ({
-            type: 'text',
-            text: variable,
-          })),
-        },
-      ];
+      // Convert variables to Meta API format (omit components if no variables)
+      const components = variables && variables.length > 0
+        ? [
+            {
+              type: 'body',
+              parameters: variables.map((variable) => ({
+                type: 'text',
+                text: variable,
+              })),
+            },
+          ]
+        : [];
 
       const payload: MessagePayload = {
         messaging_product: 'whatsapp',
