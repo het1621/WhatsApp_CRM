@@ -10,8 +10,14 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_key_change_in_prod
 router.post('/signup', async (req, res) => {
   const { email, password, name } = req.body;
 
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
   if (!email || !password || !name) {
     return res.status(400).json({ error: 'Email, password, and name required' });
+  }
+
+  if (!EMAIL_REGEX.test(email)) {
+    return res.status(400).json({ error: 'Please enter a valid email address' });
   }
 
   if (password.length < 8) {

@@ -4,7 +4,10 @@ import { phoneNormalizer } from '../lib/phoneNormalizer';
 import multer from 'multer';
 import { parse } from 'csv-parse/sync';
 
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max CSV size limit
+});
 
 const router = Router();
 
