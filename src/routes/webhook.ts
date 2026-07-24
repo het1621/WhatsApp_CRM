@@ -29,8 +29,30 @@ router.get('/', (req, res) => {
   }
 });
 
+import crypto from 'crypto';
+
+const verifySignature = (payload: string | Buffer, signature: string, appSecret: string): boolean => {
+  if (!signature || !appSecret) return true; // Skip if no secret configured in test mode
+  const expectedHash = crypto
+    .createHmac('sha256', appSecret)
+    .update(payload)
+    .digest('hex');
+  return `sha256=${expectedHash}` === signature;
+};
+
 // Receive messages and status updates (POST)
 router.post('/', async (req, res) => {
+  const signature = req.headers['x-hub-signature-256'] as string;
+  const appSecret = process.env.META_APP_SECRET || config.meta.appSecret;
+
+  if (signature && appSecret) {
+    const rawBody = (req as any).rawBody || JSON.stringify(req.body);
+    if (!verifySignature(rawBody, signature, appSecret)) {
+      console.error('❌ Webhook signature verification failed');
+      return res.status(403).json({ error: 'Invalid webhook signature' });
+    }
+  }
+
   const body = req.body;
 
   // Meta requires immediate 200 response
